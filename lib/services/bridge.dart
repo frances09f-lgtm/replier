@@ -1,0 +1,70 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
+
+/// Talks to the Kotlin side: notification events stream in, reply and
+/// permission actions go out. Events posted while the engine was dead are
+/// buffered natively and drained on resume - nothing is lost silently.
+class ReplierBridge {
+  static const _control = MethodChannel('replier/control');
+  static const _events = EventChannel('replier/events');
+
+  Stream<Map<String, dynamic>> events() =>
+      _events.receiveBroadcastStream().map((e) => Map<String, dynamic>.from(e as Map));
+
+  /// Events buffered natively while no engine was listening.
+  Future<List<Map<String, dynamic>>> drainPending() async {
+    try {
+      final raw = await _control.invokeListMethod<dynamic>('drainEvents');
+      if (raw == null) return const [];
+      return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } on PlatformException {
+      return const [];
+    }
+  }
+
+  /// {notification: bool, accessibility: bool}
+  Future<Map<String, bool>> permissionStatus() async {
+    try {
+      final raw = await _control.invokeMethod<Map>('permissionStatus');
+      if (raw == null) return {'notification': false, 'accessibility': false};
+      return {
+        'notification': raw['notification'] == true,
+        'accessibility': raw['accessibility'] == true,
+      };
+    } on PlatformException {
+      return {'notification': false, 'accessibility': false};
+    }
+  }
+
+  Future<void> openNotificationAccessSettings() =>
+      _control.invokeMethod<void>('openNotificationAccessSettings');
+
+  Future<void> openAccessibilitySettings() =>
+      _control.invokeMethod<void>('openAccessibilitySettings');
+
+  /// Inline reply through the notification's own reply action.
+  /// Returns sent | no_inline | gone | error.
+  Future<String> sendReply(String notifKey, String text) async {
+    try {
+      return await _control.invokeMethod<String>(
+              'sendReply', {'key': notifKey, 'text': text}) ??
+          'error';
+    } on PlatformException {
+      return 'error';
+    }
+  }
+
+  /// Opens the chat and asks the accessibility service to type + send.
+  /// Returns opened | gone | no_accessibility | error. 'opened' is
+  /// best-effort: the accessibility pass reports honestly back on-screen.
+  Future<String> openAndSend(String notifKey, String text) async {
+    try {
+      return await _control.invokeMethod<String>(
+              'openAndSend', {'key': notifKey, 'text': text}) ??
+          'error';
+    } on PlatformException {
+      return 'error';
+    }
+  }
+}

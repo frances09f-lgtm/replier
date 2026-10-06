@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_desc">Lets Replier send a reply you approved when the chat app has no quick-reply action.</string>
+</resources>
