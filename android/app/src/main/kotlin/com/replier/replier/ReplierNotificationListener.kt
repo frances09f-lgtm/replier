@@ -1,6 +1,8 @@
 package com.replier.replier
 
 import android.app.Notification
+import android.app.Person
+import android.os.Build
 import android.app.RemoteInput
 import android.content.Context
 import android.content.Intent
@@ -118,16 +120,24 @@ class ReplierNotificationListener : NotificationListenerService() {
             // MessagingStyle notifications (WhatsApp, Telegram, ...) carry
             // the real sender per message and let us skip the user's OWN
             // outgoing messages.
-            val style = Notification.MessagingStyle.extractMessagingStyleFromNotification(n)
-            if (style != null) {
-                val userName = style.userDisplayName?.toString()
-                val msgs = style.messages
-                if (msgs.isNotEmpty()) {
-                    val last = msgs[msgs.size - 1]
-                    val msgSender = last.senderPerson?.name?.toString() ?: ""
+            // Framework-only MessagingStyle parsing (no androidx dep):
+            // EXTRA_MESSAGES holds Message bundles, EXTRA_MESSAGING_PERSON
+            // holds the phone owner's own Person (used to skip outgoing).
+            val msgBundles = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
+            if (msgBundles != null && msgBundles.isNotEmpty()) {
+                val lastBundle = msgBundles[msgBundles.size - 1] as? Bundle
+                if (lastBundle != null) {
+                    val msg = Notification.MessagingStyle.Message.getMessageFromBundle(lastBundle)
+                    val userPerson: Person? =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                            extras.getParcelable(Notification.EXTRA_MESSAGING_PERSON, Person::class.java)
+                        else
+                            @Suppress("DEPRECATION") extras.getParcelable(Notification.EXTRA_MESSAGING_PERSON) as? Person
+                    val userName = userPerson?.name?.toString()
+                    val msgSender = msg.senderPerson?.name?.toString() ?: ""
                     if (!userName.isNullOrEmpty() && msgSender == userName) return
                     if (msgSender.isNotEmpty()) sender = msgSender
-                    val msgText = last.text?.toString() ?: ""
+                    val msgText = msg.text?.toString() ?: ""
                     if (msgText.isNotEmpty()) text = msgText
                 }
             }
