@@ -127,17 +127,24 @@ class ReplierNotificationListener : NotificationListenerService() {
             if (msgBundles != null && msgBundles.isNotEmpty()) {
                 val lastBundle = msgBundles[msgBundles.size - 1] as? Bundle
                 if (lastBundle != null) {
-                    val msg = Notification.MessagingStyle.Message.getMessageFromBundle(lastBundle)
+                    // Parse the Message bundle directly (stable framework keys
+                    // "text"/"sender"/"sender_person") - no hidden API calls.
+                    val senderP: Person? =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                            lastBundle.getParcelable("sender_person", Person::class.java)
+                        else
+                            @Suppress("DEPRECATION") lastBundle.getParcelable("sender_person") as? Person
                     val userPerson: Person? =
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
                             extras.getParcelable(Notification.EXTRA_MESSAGING_PERSON, Person::class.java)
                         else
                             @Suppress("DEPRECATION") extras.getParcelable(Notification.EXTRA_MESSAGING_PERSON) as? Person
                     val userName = userPerson?.name?.toString()
-                    val msgSender = msg.senderPerson?.name?.toString() ?: ""
+                    val msgSender = senderP?.name?.toString()
+                        ?: lastBundle.getCharSequence("sender")?.toString() ?: ""
                     if (!userName.isNullOrEmpty() && msgSender == userName) return
                     if (msgSender.isNotEmpty()) sender = msgSender
-                    val msgText = msg.text?.toString() ?: ""
+                    val msgText = lastBundle.getCharSequence("text")?.toString() ?: ""
                     if (msgText.isNotEmpty()) text = msgText
                 }
             }
