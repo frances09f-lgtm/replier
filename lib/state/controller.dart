@@ -26,6 +26,10 @@ class ReplierController extends ChangeNotifier {
   bool notifAccess = false;
   bool accessibilityAccess = false;
   String lastSendNote = '';
+  bool legacyInstalled = false,
+      legacyNotification = false,
+      legacyAccessibility = false;
+  bool get legacyBlocked => legacyNotification || legacyAccessibility;
 
   List<MessageEvent> get pending => store.pendingReview();
   List<MessageEvent> get history => store.newestFirst();
@@ -39,6 +43,10 @@ class ReplierController extends ChangeNotifier {
   }
 
   Future<void> refreshPermissions() async {
+    final legacy = await bridge.legacyStatus();
+    legacyInstalled = legacy['installed'] ?? false;
+    legacyNotification = legacy['notification'] ?? false;
+    legacyAccessibility = legacy['accessibility'] ?? false;
     final p = await bridge.permissionStatus();
     notifAccess = p['notification'] ?? false;
     accessibilityAccess = p['accessibility'] ?? false;
@@ -46,6 +54,7 @@ class ReplierController extends ChangeNotifier {
   }
 
   Future<void> _onEvent(Map<String, dynamic> raw) async {
+    if (legacyBlocked) return;
     final text = raw['text']?.toString() ?? '';
     if (text.trim().isEmpty) return; // missing notification text: skip safely
     final e = store.addIfNew(
@@ -84,6 +93,8 @@ class ReplierController extends ChangeNotifier {
         e.status == 'approved') {
       return 'Already attempted. Check the chat before trying again.';
     }
+    if (legacyBlocked)
+      return 'Turn off old Replier notification and accessibility access first.';
     final text = (editedText ?? e.generatedReply).trim();
     if (text.isEmpty) return 'The reply is empty.';
     e.finalReply = text;

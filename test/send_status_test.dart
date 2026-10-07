@@ -88,4 +88,6 @@ void main() {
     await c.approve(m);
     expect(bridge.calls, 0);
   });
+  test('old active listener blocks outgoing attempt',()async{c.legacyNotification=true;final m=e();expect(await c.approve(m),contains('Turn off old'));expect(bridge.calls,0);});
+
 }

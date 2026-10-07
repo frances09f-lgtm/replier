@@ -24,6 +24,21 @@ class ReplierBridge {
     }
   }
 
+  Future<Map<String, bool>> legacyStatus() async {
+    try {
+      final raw = await _control.invokeMethod<Map>('legacyStatus');
+      return {
+        'installed': raw?['installed'] == true,
+        'notification': raw?['notification'] == true,
+        'accessibility': raw?['accessibility'] == true,
+      };
+    } on PlatformException {
+      return {};
+    } on MissingPluginException {
+      return {};
+    }
+  }
+
   /// {notification: bool, accessibility: bool}
   Future<Map<String, bool>> permissionStatus() async {
     try {

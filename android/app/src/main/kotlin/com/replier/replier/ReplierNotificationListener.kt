@@ -58,6 +58,7 @@ class ReplierNotificationListener : NotificationListenerService() {
         /// Send through the notification's own inline-reply action.
         /// submitted | no_inline | gone | error
         fun replyInline(context: Context, key: String, text: String): String {
+            if (LegacyMigration.blocked(context)) return "old_access_active"
             if (text.isBlank()) return "error"
             val sbn = active(context, key) ?: return "gone"
             val actions = sbn.notification.actions ?: return "no_inline"
@@ -85,6 +86,7 @@ class ReplierNotificationListener : NotificationListenerService() {
         /// No inline action: open the chat, queue the text for the
         /// accessibility service to type + send. opened | gone | error
         fun openChatAndQueueSend(context: Context, key: String, text: String): String {
+            if (LegacyMigration.blocked(context)) return "old_access_active"
             val sbn = active(context, key) ?: return "gone"
             val pi = sbn.notification.contentIntent ?: return "error"
             return try {
@@ -110,6 +112,7 @@ class ReplierNotificationListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         try {
+            if (LegacyMigration.blocked(this)) return
             if (sbn.packageName == packageName) return // never process our own
             val n = sbn.notification ?: return
             val extras = n.extras ?: return

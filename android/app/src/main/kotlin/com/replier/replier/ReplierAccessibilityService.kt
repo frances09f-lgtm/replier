@@ -27,6 +27,7 @@ class ReplierAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (LegacyMigration.blocked(this)) { clearQueue(); return }
         val text = pendingText ?: return
         if (event == null) return
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&

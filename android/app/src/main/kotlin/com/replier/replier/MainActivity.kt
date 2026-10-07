@@ -33,6 +33,7 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CONTROL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "legacyStatus" -> result.success(LegacyMigration.status(this))
                     "drainEvents" -> result.success(ReplierNotificationListener.drainBuffer())
                     "permissionStatus" -> result.success(
                         mapOf(

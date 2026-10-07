@@ -44,7 +44,14 @@ class _ReplierHomeState extends State<ReplierHome> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Replier')),
-      body: [_Dashboard(c: c), _Logs(c: c), _Settings(c: c)][_tab],
+      body: Column(
+        children: [
+          if (c.legacyInstalled) _LegacyCard(c: c),
+          Expanded(
+            child: [_Dashboard(c: c), _Logs(c: c), _Settings(c: c)][_tab],
+          ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
@@ -420,4 +427,50 @@ String _fmtTime(DateTime d) {
   final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
   final ampm = d.hour < 12 ? 'AM' : 'PM';
   return '$h:${d.minute.toString().padLeft(2, '0')} $ampm';
+}
+
+class _LegacyCard extends StatelessWidget {
+  final ReplierController c;
+  const _LegacyCard({required this.c});
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.all(12),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Old Replier is installed',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          Text(
+            c.legacyBlocked
+                ? 'New Replier is paused. Turn off the old app notification and accessibility access to avoid two listeners.'
+                : 'Old app access is off. New Replier can be used.',
+          ),
+          const Text(
+            'This is a separate app. Old settings and drafts stay in the old app; they are not copied. Use the launcher named Replier New.',
+          ),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton(
+                onPressed: c.bridge.openNotificationAccessSettings,
+                child: const Text('Notification access'),
+              ),
+              TextButton(
+                onPressed: c.bridge.openAccessibilitySettings,
+                child: const Text('Accessibility'),
+              ),
+              TextButton(
+                onPressed: c.refreshPermissions,
+                child: const Text('Recheck'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }
