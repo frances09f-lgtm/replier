@@ -6,6 +6,7 @@ import '../models/message_event.dart';
 import '../services/ai/ai_provider.dart';
 import '../services/bridge.dart';
 import '../services/event_store.dart';
+import '../services/usage_reporter.dart';
 
 /// Wires notification events -> store -> reply draft -> user review.
 /// V1 sends NOTHING on its own: every send is a user tap on Approve.
@@ -61,12 +62,14 @@ class ReplierController extends ChangeNotifier {
         await provider.generateReply(sender: e.sender, text: e.text);
     e.status = 'generated';
     await store.save(e);
+    UsageReporter.report('draft_created');
     notifyListeners();
   }
 
   Future<void> reject(MessageEvent e) async {
     e.status = 'rejected';
     await store.save(e);
+    UsageReporter.report('draft_rejected');
     notifyListeners();
   }
 
@@ -98,6 +101,13 @@ class ReplierController extends ChangeNotifier {
     } else {
       e.status = 'send_failed';
       lastSendNote = 'Could not send the reply.';
+    }
+    UsageReporter.report('draft_approved', {'edited': editedText != null});
+    if (e.status == 'approved') {
+      UsageReporter.report('reply_sent',
+          {'via': result == 'sent' ? 'inline' : 'accessibility'});
+    } else if (e.status == 'send_failed') {
+      UsageReporter.report('reply_send_failed');
     }
     await store.save(e);
     notifyListeners();

@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'models/message_event.dart';
 import 'services/bridge.dart';
 import 'services/event_store.dart';
+import 'services/usage_reporter.dart';
 import 'state/controller.dart';
 import 'ui/home.dart';
 
@@ -14,6 +15,7 @@ Future<void> main() async {
   Hive.registerAdapter(MessageEventAdapter());
   final store = EventStore();
   await store.init();
+  UsageReporter.report('app_start');
   final controller = ReplierController(store: store, bridge: ReplierBridge());
   await controller.start();
   runApp(ReplierApp(controller: controller));
