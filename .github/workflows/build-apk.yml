@@ -17,6 +17,15 @@ jobs:
         with:
           channel: stable
           flutter-version: '3.47.6'
+      - name: Restore signing keystore
+        run: |
+          echo "${{ secrets.REPLIER_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/replier-release.jks
+          cat >> android/gradle.properties <<GP
+          REPLIER_KEYSTORE_FILE=$RUNNER_TEMP/replier-release.jks
+          REPLIER_KEYSTORE_PASSWORD=${{ secrets.REPLIER_KEYSTORE_PASSWORD }}
+          REPLIER_KEY_ALIAS=${{ secrets.REPLIER_KEY_ALIAS }}
+          REPLIER_KEY_PASSWORD=${{ secrets.REPLIER_KEY_PASSWORD }}
+          GP
       - run: flutter pub get
       - run: flutter test || true
       - run: flutter build apk --release --target-platform android-arm64 -v --build-number=$GITHUB_RUN_NUMBER --build-name=1.0.$GITHUB_RUN_NUMBER

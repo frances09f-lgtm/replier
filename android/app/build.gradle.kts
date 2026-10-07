@@ -1,3 +1,5 @@
+val replierKeystoreFile = providers.gradleProperty("REPLIER_KEYSTORE_FILE").orNull
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -29,11 +31,26 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        // Stable release key from repo secrets in CI so updates install over
+        // the top; local builds fall back to the debug key as before.
+        if (replierKeystoreFile != null) {
+            create("release") {
+                storeFile = file(replierKeystoreFile)
+                storePassword = providers.gradleProperty("REPLIER_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.gradleProperty("REPLIER_KEY_ALIAS").orNull
+                keyPassword = providers.gradleProperty("REPLIER_KEY_PASSWORD").orNull
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (replierKeystoreFile != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
