@@ -13,8 +13,10 @@ class LocalRuleProvider implements AiProvider {
   String get name => 'local-rules (v1)';
 
   @override
-  Future<String> generateReply(
-      {required String sender, required String text}) async {
+  Future<String> generateReply({
+    required String sender,
+    required String text,
+  }) async {
     final t = text.trim().toLowerCase();
     if (t.isEmpty) return '';
     if (t.endsWith('?')) {

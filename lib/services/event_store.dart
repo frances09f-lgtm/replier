@@ -47,8 +47,9 @@ class EventStore {
 
   void _trim() {
     while (_events.length > _maxEvents) {
-      final oldest = _events.values
-          .reduce((a, b) => a.at.isBefore(b.at) ? a : b);
+      final oldest = _events.values.reduce(
+        (a, b) => a.at.isBefore(b.at) ? a : b,
+      );
       oldest.delete();
     }
   }

@@ -9,8 +9,9 @@ class ReplierBridge {
   static const _control = MethodChannel('replier/control');
   static const _events = EventChannel('replier/events');
 
-  Stream<Map<String, dynamic>> events() =>
-      _events.receiveBroadcastStream().map((e) => Map<String, dynamic>.from(e as Map));
+  Stream<Map<String, dynamic>> events() => _events.receiveBroadcastStream().map(
+    (e) => Map<String, dynamic>.from(e as Map),
+  );
 
   /// Events buffered natively while no engine was listening.
   Future<List<Map<String, dynamic>>> drainPending() async {
@@ -49,11 +50,13 @@ class ReplierBridge {
       _control.invokeMethod<void>('openAppSettings');
 
   /// Inline reply through the notification's own reply action.
-  /// Returns sent | no_inline | gone | error.
+  /// Returns submitted | no_inline | gone | error.
   Future<String> sendReply(String notifKey, String text) async {
     try {
-      return await _control.invokeMethod<String>(
-              'sendReply', {'key': notifKey, 'text': text}) ??
+      return await _control.invokeMethod<String>('sendReply', {
+            'key': notifKey,
+            'text': text,
+          }) ??
           'error';
     } on PlatformException {
       return 'error';
@@ -62,11 +65,13 @@ class ReplierBridge {
 
   /// Opens the chat and asks the accessibility service to type + send.
   /// Returns opened | gone | no_accessibility | error. 'opened' is
-  /// best-effort: the accessibility pass reports honestly back on-screen.
+  /// best-effort only. There is no delivery receipt for this path.
   Future<String> openAndSend(String notifKey, String text) async {
     try {
-      return await _control.invokeMethod<String>(
-              'openAndSend', {'key': notifKey, 'text': text}) ??
+      return await _control.invokeMethod<String>('openAndSend', {
+            'key': notifKey,
+            'text': text,
+          }) ??
           'error';
     } on PlatformException {
       return 'error';

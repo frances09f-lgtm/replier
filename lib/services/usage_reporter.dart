@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:hive/hive.dart';
 
 /// Coarse telemetry for the owner's personal dashboard.
@@ -38,12 +39,14 @@ class UsageReporter {
           req.headers.set('Authorization', 'Bearer $_key');
           req.headers.set('Content-Type', 'application/json');
           req.headers.set('Prefer', 'return=minimal');
-          req.write(jsonEncode({
-            'app': 'replier',
-            'device': device,
-            'kind': kind,
-            'meta': meta ?? const {},
-          }));
+          req.write(
+            jsonEncode({
+              'app': 'replier',
+              'device': device,
+              'kind': kind,
+              'meta': meta ?? const {},
+            }),
+          );
           final res = await req.close().timeout(const Duration(seconds: 5));
           await res.drain<void>();
         } finally {

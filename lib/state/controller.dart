@@ -55,11 +55,14 @@ class ReplierController extends ChangeNotifier {
       sender: raw['sender']?.toString() ?? 'Unknown',
       text: text,
       at: DateTime.fromMillisecondsSinceEpoch(
-          (raw['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
+        (raw['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
+      ),
     );
     if (e == null) return; // duplicate notification
-    e.generatedReply =
-        await provider.generateReply(sender: e.sender, text: e.text);
+    e.generatedReply = await provider.generateReply(
+      sender: e.sender,
+      text: e.text,
+    );
     e.status = 'generated';
     await store.save(e);
     UsageReporter.report('draft_created');
@@ -75,37 +78,45 @@ class ReplierController extends ChangeNotifier {
 
   /// The ONLY send path in V1: explicit user approval of a reviewed reply.
   Future<String> approve(MessageEvent e, {String? editedText}) async {
+    if (e.status == 'sending' ||
+        e.status == 'submitted' ||
+        e.status == 'opened_unverified' ||
+        e.status == 'approved') {
+      return 'Already attempted. Check the chat before trying again.';
+    }
     final text = (editedText ?? e.generatedReply).trim();
     if (text.isEmpty) return 'The reply is empty.';
     e.finalReply = text;
+    e.status = 'sending';
+    await store.save(e);
+    notifyListeners();
     var result = await bridge.sendReply(e.notifKey, text);
     if (result == 'no_inline') {
       // The app offers no inline reply action: open the chat and let the
       // accessibility service try to type + send.
       result = await bridge.openAndSend(e.notifKey, text);
       if (result == 'opened') {
-        e.status = 'approved';
-        lastSendNote =
-            'Chat opened - Replier will try to send. If nothing appears, paste manually (accessibility varies by app).';
+        e.status = 'opened_unverified';
+        lastSendNote = 'Chat opened. Sending is not confirmed. Check the chat before sending again.';
       } else if (result == 'no_accessibility') {
         e.status = 'send_failed';
-        lastSendNote =
-            'Accessibility access is off - enable it in Settings, or the reply could not be sent.';
+        lastSendNote = 'Accessibility access is off - enable it in Settings, or the reply could not be sent.';
       } else {
         e.status = 'send_failed';
         lastSendNote = 'Could not send: the notification is gone.';
       }
-    } else if (result == 'sent') {
-      e.status = 'approved';
-      lastSendNote = 'Reply sent.';
+    } else if (result == 'submitted' || result == 'sent') {
+      e.status = 'submitted';
+      lastSendNote = 'Reply submitted to the app. Delivery is not confirmed.';
     } else {
       e.status = 'send_failed';
       lastSendNote = 'Could not send the reply.';
     }
     UsageReporter.report('draft_approved', {'edited': editedText != null});
-    if (e.status == 'approved') {
-      UsageReporter.report('reply_sent',
-          {'via': result == 'sent' ? 'inline' : 'accessibility'});
+    if (e.status == 'submitted') {
+      UsageReporter.report('reply_submitted', {'via': 'inline'});
+    } else if (e.status == 'opened_unverified') {
+      UsageReporter.report('chat_opened_unverified');
     } else if (e.status == 'send_failed') {
       UsageReporter.report('reply_send_failed');
     }

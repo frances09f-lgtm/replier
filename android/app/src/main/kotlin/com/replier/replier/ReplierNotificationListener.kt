@@ -56,7 +56,7 @@ class ReplierNotificationListener : NotificationListenerService() {
         }
 
         /// Send through the notification's own inline-reply action.
-        /// sent | no_inline | gone | error
+        /// submitted | no_inline | gone | error
         fun replyInline(context: Context, key: String, text: String): String {
             if (text.isBlank()) return "error"
             val sbn = active(context, key) ?: return "gone"
@@ -72,7 +72,7 @@ class ReplierNotificationListener : NotificationListenerService() {
                     }
                     RemoteInput.addResultsToIntent(inputs, fill, bundle)
                     action.actionIntent.send(context, 0, fill)
-                    "sent"
+                    "submitted"
                 } catch (e: PendingIntent.CanceledException) {
                     "gone"
                 } catch (e: Exception) {

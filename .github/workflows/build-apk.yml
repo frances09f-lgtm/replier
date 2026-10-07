@@ -27,7 +27,7 @@ jobs:
           REPLIER_KEY_PASSWORD=${{ secrets.REPLIER_KEY_PASSWORD }}
           GP
       - run: flutter pub get
-      - run: flutter test || true
+      - run: flutter test
       - run: flutter build apk --release --target-platform android-arm64 -v --build-number=$GITHUB_RUN_NUMBER --build-name=1.0.$GITHUB_RUN_NUMBER
       - run: mv build/app/outputs/flutter-apk/app-release.apk "build/app/outputs/flutter-apk/Replier.apk"
       - uses: actions/upload-artifact@v4
