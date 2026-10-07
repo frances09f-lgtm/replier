@@ -24,6 +24,16 @@ class ReplierBridge {
     }
   }
 
+  Future<Map<String, dynamic>> listenerHealth() async {
+    try {
+      return Map<String, dynamic>.from(
+        await _control.invokeMethod<Map>('listenerHealth') ?? {},
+      );
+    } catch (_) {
+      return {};
+    }
+  }
+
   Future<Map<String, bool>> legacyStatus() async {
     try {
       final raw = await _control.invokeMethod<Map>('legacyStatus');

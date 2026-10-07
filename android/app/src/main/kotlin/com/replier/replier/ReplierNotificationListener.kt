@@ -21,6 +21,13 @@ class ReplierNotificationListener : NotificationListenerService() {
 
     companion object {
         @Volatile var sink: EventChannel.EventSink? = null
+        @Volatile var received=0
+        @Volatile var emitted=0
+        @Volatile var blockedOld=0
+        @Volatile var empty=0
+        @Volatile var lastPostAt=0L
+        @Volatile var lastError=""
+        fun health():Map<String,Any> = mapOf("connected" to (instance!=null),"received" to received,"emitted" to emitted,"blockedOld" to blockedOld,"empty" to empty,"buffered" to buffer.size,"lastPostAt" to lastPostAt,"error" to lastError)
         private val buffer = ConcurrentLinkedQueue<Map<String, Any>>()
 
         fun warm() { /* touch the class so the buffer exists */ }
@@ -43,7 +50,8 @@ class ReplierNotificationListener : NotificationListenerService() {
 
         private fun emit(event: Map<String, Any>) {
             val s = sink
-            if (s != null) s.success(event) else buffer.add(event)
+            emitted++
+            if (s != null) {try{s.success(event)}catch(e:Exception){buffer.add(event);lastError=e.javaClass.simpleName}} else buffer.add(event)
         }
 
         private fun active(context: Context, key: String): StatusBarNotification? {
@@ -111,8 +119,10 @@ class ReplierNotificationListener : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
+        received++
+        lastPostAt=System.currentTimeMillis()
         try {
-            if (LegacyMigration.blocked(this)) return
+            if (LegacyMigration.blocked(this)) {blockedOld++;return}
             if (sbn.packageName == packageName) return // never process our own
             val n = sbn.notification ?: return
             val extras = n.extras ?: return
@@ -154,7 +164,7 @@ class ReplierNotificationListener : NotificationListenerService() {
                 }
             }
 
-            if (text.isBlank()) return // nothing readable: skip safely
+            if (text.isBlank()) {empty++;return} // nothing readable
             if (sender.isBlank()) sender = sbn.packageName
 
             val label = try {
@@ -176,6 +186,7 @@ class ReplierNotificationListener : NotificationListenerService() {
                 )
             )
         } catch (e: Exception) {
+            lastError=e.javaClass.simpleName
             // A malformed notification must never kill the listener.
         }
     }

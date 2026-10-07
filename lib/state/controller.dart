@@ -22,6 +22,9 @@ class ReplierController extends ChangeNotifier {
   final AiProvider provider;
 
   StreamSubscription? _sub;
+  Map<String, dynamic> listenerHealth = {};
+  int dartReceived = 0, duplicates = 0, draftsCreated = 0;
+  String pipelineError = '';
   bool autoReplyEnabled = false; // master switch; V1 stays preview-only
   bool notifAccess = false;
   bool accessibilityAccess = false;
@@ -36,13 +39,23 @@ class ReplierController extends ChangeNotifier {
 
   Future<void> start() async {
     await refreshPermissions();
-    _sub = bridge.events().listen(_onEvent);
+    _sub = bridge.events().listen(
+      (e) => _onEvent(e).catchError((Object e) {
+        pipelineError = e.toString();
+        notifyListeners();
+      }),
+      onError: (Object e) {
+        pipelineError = e.toString();
+        notifyListeners();
+      },
+    );
     for (final e in await bridge.drainPending()) {
       _onEvent(e);
     }
   }
 
   Future<void> refreshPermissions() async {
+    listenerHealth = await bridge.listenerHealth();
     final legacy = await bridge.legacyStatus();
     legacyInstalled = legacy['installed'] ?? false;
     legacyNotification = legacy['notification'] ?? false;
@@ -54,6 +67,7 @@ class ReplierController extends ChangeNotifier {
   }
 
   Future<void> _onEvent(Map<String, dynamic> raw) async {
+    dartReceived++;
     if (legacyBlocked) return;
     final text = raw['text']?.toString() ?? '';
     if (text.trim().isEmpty) return; // missing notification text: skip safely
@@ -67,14 +81,27 @@ class ReplierController extends ChangeNotifier {
         (raw['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
       ),
     );
-    if (e == null) return; // duplicate notification
+    if (e == null) {
+      duplicates++;
+      notifyListeners();
+      return;
+    } // duplicate notification
     e.generatedReply = await provider.generateReply(
       sender: e.sender,
       text: e.text,
     );
     if (e.status != 'superseded') e.status = 'generated';
     await store.save(e);
+    draftsCreated++;
     UsageReporter.report('draft_created');
+    notifyListeners();
+  }
+
+  Future<void> resume() async {
+    await refreshPermissions();
+    for (final e in await bridge.drainPending()) {
+      await _onEvent(e);
+    }
     notifyListeners();
   }
 

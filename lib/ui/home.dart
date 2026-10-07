@@ -37,7 +37,7 @@ class _ReplierHomeState extends State<ReplierHome> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) c.refreshPermissions();
+    if (state == AppLifecycleState.resumed) c.resume();
   }
 
   @override
@@ -47,6 +47,30 @@ class _ReplierHomeState extends State<ReplierHome> with WidgetsBindingObserver {
       body: Column(
         children: [
           if (c.legacyInstalled) _LegacyCard(c: c),
+          if (_tab == 2)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Capture diagnostics'),
+                    Text('Native: ${c.listenerHealth}'),
+                    Text(
+                      'App events ${c.dartReceived} · drafts ${c.draftsCreated} · duplicates ${c.duplicates}',
+                    ),
+                    if (c.pipelineError.isNotEmpty)
+                      Text('Error: ${c.pipelineError}'),
+                    TextButton(
+                      onPressed: c.resume,
+                      child: const Text(
+                        'Refresh diagnostics and buffered messages',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           Expanded(
             child: [_Dashboard(c: c), _Logs(c: c), _Settings(c: c)][_tab],
           ),
