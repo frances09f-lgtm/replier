@@ -163,10 +163,16 @@ class _RestrictedHint extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Android 13+ blocks permissions for apps installed from an APK '
-            'until you allow them once: open App info below, tap the three-dot '
-            'menu (top right), choose "Allow restricted settings", then come '
-            'back and grant access.',
+            'On Android 14 the fix is hidden until you trigger it once: '
+            '1) Tap the Replier toggle anyway - when the "Restricted setting" '
+            'dialog pops up, tap OK. 2) Stay in Settings and open Replier\'s '
+            'App info (button below, or Settings > Apps > App management > '
+            'Replier). 3) The three-dot menu (top right) should now be there - '
+            'tap it > "Allow restricted settings". If the dots are missing, '
+            'tap the toggle once more and check again. 4) Grant both '
+            'permissions. Fallback: delete Replier and reinstall the APK with '
+            'a Play Store installer app (APKMirror Installer or Uptodown APK '
+            'Installer) - apps installed that way skip the restriction.',
             style: TextStyle(fontSize: 11, color: Colors.white70),
           ),
           const SizedBox(height: 8),
@@ -337,7 +343,7 @@ class _SettingsState extends State<_Settings> {
         ListTile(
           title: const Text('App info'),
           subtitle: const Text(
-              'Fix "Restricted setting": App info > three-dot menu > Allow restricted settings'),
+              'Fix "Restricted setting": tap the grayed toggle first, then App info > three-dot menu > Allow restricted settings'),
           trailing: const Icon(Icons.open_in_new, size: 18),
           onTap: c.bridge.openAppSettings,
         ),
