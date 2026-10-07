@@ -35,6 +35,7 @@ class MessageEvent extends HiveObject {
     'approved' || 'edited' => 'Past attempt (unverified)',
     'sending' => 'Attempt started (check chat)',
     'send_failed' => 'Send failed',
+    'superseded' => 'Replaced by newer message',
     _ => status,
   };
 }

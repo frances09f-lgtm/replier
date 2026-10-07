@@ -72,7 +72,7 @@ class ReplierController extends ChangeNotifier {
       sender: e.sender,
       text: e.text,
     );
-    e.status = 'generated';
+    if (e.status != 'superseded') e.status = 'generated';
     await store.save(e);
     UsageReporter.report('draft_created');
     notifyListeners();
@@ -93,6 +93,8 @@ class ReplierController extends ChangeNotifier {
         e.status == 'approved') {
       return 'Already attempted. Check the chat before trying again.';
     }
+    if (e.status == 'superseded')
+      return 'A newer message arrived. Review the newest draft instead.';
     if (legacyBlocked)
       return 'Turn off old Replier notification and accessibility access first.';
     final text = (editedText ?? e.generatedReply).trim();

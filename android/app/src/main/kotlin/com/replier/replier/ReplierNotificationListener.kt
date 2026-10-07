@@ -118,6 +118,7 @@ class ReplierNotificationListener : NotificationListenerService() {
             val extras = n.extras ?: return
 
             var sender = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+            var messageAt = sbn.postTime
             var text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
 
             // MessagingStyle notifications (WhatsApp, Telegram, ...) carry
@@ -130,6 +131,7 @@ class ReplierNotificationListener : NotificationListenerService() {
             if (msgBundles != null && msgBundles.isNotEmpty()) {
                 val lastBundle = msgBundles[msgBundles.size - 1] as? Bundle
                 if (lastBundle != null) {
+                    messageAt = lastBundle.getLong("time", sbn.postTime)
                     // Parse the Message bundle directly (stable framework keys
                     // "text"/"sender"/"sender_person") - no hidden API calls.
                     val senderP: Person? =
@@ -170,7 +172,7 @@ class ReplierNotificationListener : NotificationListenerService() {
                     "appLabel" to label,
                     "sender" to sender,
                     "text" to text,
-                    "at" to sbn.postTime
+                    "at" to messageAt
                 )
             )
         } catch (e: Exception) {

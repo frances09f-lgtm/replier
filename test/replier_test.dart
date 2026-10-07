@@ -32,20 +32,20 @@ void main() {
   });
 
   MessageEvent? add(String key, {String text = 'hello'}) => store.addIfNew(
-        notifKey: key,
-        appPackage: 'com.example.chat',
-        appLabel: 'Chat',
-        sender: 'Mom',
-        text: text,
-        at: DateTime(2026, 10, 7, 3, 0),
-      );
+    notifKey: key,
+    appPackage: 'com.example.chat',
+    appLabel: 'Chat',
+    sender: 'Mom',
+    text: text,
+    at: DateTime(2026, 10, 7, 3, 0),
+  );
 
   test('stores a new notification event', () {
     expect(add('k1'), isNotNull);
     expect(store.newestFirst().length, 1);
   });
 
-  test('the same notification key is never processed twice', () {
+  test('exact notification message repeat is suppressed', () {
     expect(add('k1'), isNotNull);
     expect(add('k1'), isNull);
     expect(add('k1'), isNull);
@@ -83,5 +83,28 @@ void main() {
     expect(await p.generateReply(sender: 'Mom', text: '   '), isEmpty);
   });
 
-;
+  ;
+  test(
+    'same notification key accepts later text and replaces pending old draft',
+    () {
+      final first = add('k1')!;
+      first.status = 'generated';
+      final second = add('k1', text: 'another message');
+      expect(second, isNotNull);
+      expect(first.status, 'superseded');
+      expect(store.pendingReview().length, 1);
+    },
+  );
+  test('same text at a later message timestamp is new', () {
+    add('k1');
+    final second = store.addIfNew(
+      notifKey: 'k1',
+      appPackage: 'com.example.chat',
+      appLabel: 'Chat',
+      sender: 'Mom',
+      text: 'hello',
+      at: DateTime(2026, 10, 7, 3, 1),
+    );
+    expect(second, isNotNull);
+  });
 }

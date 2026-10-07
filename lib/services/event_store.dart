@@ -1,11 +1,12 @@
+import 'dart:convert';
+
 import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/message_event.dart';
 
-/// Local-first store. A notification is processed exactly once: the
-/// notification key is remembered in a seen-set, so re-posts and engine
-/// restarts never generate a second reply draft for the same notification.
+/// Local-first store. Android notification keys identify a conversation slot,
+/// not a message. Deduplicate exact message updates, not permanent keys.
 class EventStore {
   static const _eventsBox = 'events';
   static const _seenBox = 'seen_notifs';
@@ -29,7 +30,22 @@ class EventStore {
     required String text,
     required DateTime at,
   }) {
-    if (_seen.values.contains(notifKey)) return null;
+    final identity = jsonEncode([
+      appPackage,
+      notifKey,
+      sender,
+      text,
+      at.millisecondsSinceEpoch,
+    ]);
+    if (_seen.values.contains(identity)) return null;
+    for (final previous in _events.values) {
+      if (previous.notifKey == notifKey &&
+          previous.appPackage == appPackage &&
+          (previous.status == 'new' || previous.status == 'generated')) {
+        previous.status = 'superseded';
+        _events.put(previous.id, previous);
+      }
+    }
     final e = MessageEvent(
       id: const Uuid().v4(),
       notifKey: notifKey,
@@ -40,7 +56,10 @@ class EventStore {
       at: at,
     );
     _events.put(e.id, e);
-    _seen.add(notifKey);
+    _seen.add(identity);
+    while (_seen.length > 2000) {
+      _seen.delete(_seen.keyAt(0));
+    }
     _trim();
     return e;
   }
