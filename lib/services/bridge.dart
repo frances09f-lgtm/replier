@@ -43,6 +43,11 @@ class ReplierBridge {
   Future<void> openAccessibilitySettings() =>
       _control.invokeMethod<void>('openAccessibilitySettings');
 
+  /// Replier's own App info page - where Android 13+ hides the
+  /// "Allow restricted settings" fix for sideloaded apps.
+  Future<void> openAppSettings() =>
+      _control.invokeMethod<void>('openAppSettings');
+
   /// Inline reply through the notification's own reply action.
   /// Returns sent | no_inline | gone | error.
   Future<String> sendReply(String notifKey, String text) async {

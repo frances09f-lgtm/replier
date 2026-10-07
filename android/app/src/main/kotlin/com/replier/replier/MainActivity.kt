@@ -1,10 +1,11 @@
 package com.replier.replier
 
-import android.content.ComponentName
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
-import android.text.TextUtils
+import android.view.accessibility.AccessibilityManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -47,6 +48,17 @@ class MainActivity : FlutterActivity() {
                         startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         result.success(null)
                     }
+                    "openAppSettings" -> {
+                        // App info page - the only place Android 13+ exposes
+                        // "Allow restricted settings" for sideloaded apps.
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:$packageName")
+                            )
+                        )
+                        result.success(null)
+                    }
                     "sendReply" -> result.success(
                         ReplierNotificationListener.replyInline(
                             this,
@@ -87,16 +99,12 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun hasAccessibilityAccess(): Boolean {
-        val expected = ComponentName(this, ReplierAccessibilityService::class.java)
-            .flattenToString()
-        val enabled = Settings.Secure.getString(
-            contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        val splitter = TextUtils.SimpleStringSplitter(':')
-        splitter.setString(enabled)
-        while (splitter.hasNext()) {
-            if (splitter.next().equals(expected, ignoreCase = true)) return true
-        }
-        return false
+        // Ask the framework which services are actually enabled - string
+        // parsing of ENABLED_ACCESSIBILITY_SERVICES breaks on some OEM
+        // builds that flatten component names differently (OnePlus/OxygenOS).
+        val am = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
+        return am
+            .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            .any { it.resolveInfo.serviceInfo.packageName == packageName }
     }
 }

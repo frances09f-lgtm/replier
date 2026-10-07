@@ -84,6 +84,8 @@ class _Dashboard extends StatelessWidget {
             onFix: c.bridge.openAccessibilitySettings,
           ),
         ]),
+        if (!c.notifAccess || !c.accessibilityAccess)
+          _RestrictedHint(c: c),
         const SizedBox(height: 16),
         Text('Waiting for review (${c.pending.length})',
             style: Theme.of(context).textTheme.titleMedium),
@@ -140,6 +142,40 @@ class _PermCard extends StatelessWidget {
             ]),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RestrictedHint extends StatelessWidget {
+  const _RestrictedHint({required this.c});
+  final ReplierController c;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text(
+            "Switch grayed out, or Android says 'Restricted setting'?",
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Android 13+ blocks permissions for apps installed from an APK '
+            'until you allow them once: open App info below, tap the three-dot '
+            'menu (top right), choose "Allow restricted settings", then come '
+            'back and grant access.',
+            style: TextStyle(fontSize: 11, color: Colors.white70),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.tonalIcon(
+            onPressed: c.bridge.openAppSettings,
+            icon: const Icon(Icons.info_outline, size: 16),
+            label: const Text('Open App info', style: TextStyle(fontSize: 12)),
+          ),
+        ]),
       ),
     );
   }
@@ -297,6 +333,13 @@ class _SettingsState extends State<_Settings> {
           subtitle: Text(c.accessibilityAccess ? 'Granted' : 'Not granted'),
           trailing: const Icon(Icons.open_in_new, size: 18),
           onTap: c.bridge.openAccessibilitySettings,
+        ),
+        ListTile(
+          title: const Text('App info'),
+          subtitle: const Text(
+              'Fix "Restricted setting": App info > three-dot menu > Allow restricted settings'),
+          trailing: const Icon(Icons.open_in_new, size: 18),
+          onTap: c.bridge.openAppSettings,
         ),
       ],
     );
