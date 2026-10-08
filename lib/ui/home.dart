@@ -329,7 +329,9 @@ class _ReplyCard extends StatelessWidget {
               e.status == 'generating'
                   ? 'Drafting…'
                   : e.generatedReply.isEmpty
-                  ? 'No draft yet'
+                  ? e.status == 'new'
+                        ? 'Queued for drafting'
+                        : 'No draft yet'
                   : e.generatedReply,
               style: const TextStyle(fontSize: 14),
             ),

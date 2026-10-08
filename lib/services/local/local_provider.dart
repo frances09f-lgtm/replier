@@ -22,7 +22,7 @@ class LlamaRunner implements LocalRunner {
   @override
   Future<String> draft(String path, List<Map<String, String>> messages) async {
     final epoch = ++_epoch;
-    final engine = await LlamaEngine.spawn(
+    final spawn = LlamaEngine.spawn(
       modelParams: ModelParams(path: path, gpuLayers: 0),
       contextParams: const ContextParams(
         nCtx: 2048,
@@ -31,6 +31,20 @@ class LlamaRunner implements LocalRunner {
         nThreadsBatch: 4,
       ),
     );
+    LlamaEngine engine;
+    try {
+      engine = await spawn.timeout(const Duration(seconds: 45));
+    } on TimeoutException {
+      _epoch++;
+      unawaited(
+        spawn
+            .then((lateEngine) => lateEngine.dispose())
+            .catchError((Object _) {}),
+      );
+      throw const ReplyGenerationException(
+        'Local model load timed out. Free RAM, then Retry or Edit. Nothing sent.',
+      );
+    }
     if (epoch != _epoch) {
       await engine.dispose();
       throw const ReplyGenerationException(
@@ -40,7 +54,7 @@ class LlamaRunner implements LocalRunner {
     _engine = engine;
     EngineChat? chat;
     try {
-      chat = await engine.createChat();
+      chat = await engine.createChat().timeout(const Duration(seconds: 20));
       if (epoch != _epoch)
         throw const ReplyGenerationException(
           'Local draft cancelled. Nothing sent.',
@@ -122,6 +136,7 @@ class LocalModelProvider implements AiProvider {
   final LocalRunner runner;
   Future<void> _tail = Future.value();
   int _cancelEpoch = 0;
+  bool _timedOut = false;
   @override
   String get name => 'Local · ${model.label} (phone test)';
   @override
@@ -135,7 +150,11 @@ class LocalModelProvider implements AiProvider {
     final finished = Completer<void>();
     _tail = finished.future;
     try {
-      await previous;
+      if (_timedOut)
+        throw const ReplyGenerationException(
+          'Local engine timed out. Restart Replier before retrying, or tap Edit. Nothing sent.',
+        );
+      await previous.timeout(const Duration(seconds: 120));
       if (epoch != _cancelEpoch)
         throw const ReplyGenerationException(
           'Local draft cancelled. Nothing sent.',
@@ -155,9 +174,24 @@ class LocalModelProvider implements AiProvider {
         throw const ReplyGenerationException(
           'Chat context too long for the local test model. Tap Edit.',
         );
-      return parseLocalDraft(await runner.draft(file.path, messages));
+      return parseLocalDraft(
+        await runner
+            .draft(file.path, messages)
+            .timeout(const Duration(seconds: 110)),
+      );
     } on ReplyGenerationException {
       rethrow;
+    } on TimeoutException {
+      _timedOut = true;
+      unawaited(
+        runner
+            .cancel()
+            .timeout(const Duration(seconds: 5))
+            .catchError((Object _) {}),
+      );
+      throw const ReplyGenerationException(
+        'Local load or generation timed out. Restart Replier to reset the engine, then Retry or Edit. Nothing sent.',
+      );
     } catch (_) {
       throw const ReplyGenerationException(
         'Local model could not finish. It may need more free memory or be unsupported. Tap Retry or Edit. No cloud fallback.',

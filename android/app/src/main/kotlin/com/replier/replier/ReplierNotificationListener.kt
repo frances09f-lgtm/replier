@@ -125,6 +125,8 @@ class ReplierNotificationListener : NotificationListenerService() {
             if (LegacyMigration.blocked(this)) return
             if (sbn.packageName == packageName) return // never process our own
             val n = sbn.notification ?: return
+            if(sbn.packageName in setOf("com.ambi.gold_paper_trading","com.ambi.lookout","com.friday.assistant"))return
+            if(n.flags and Notification.FLAG_ONGOING_EVENT != 0 || n.flags and Notification.FLAG_GROUP_SUMMARY != 0)return
             val extras = n.extras ?: return
 
             var sender = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
@@ -165,6 +167,7 @@ class ReplierNotificationListener : NotificationListenerService() {
             }
 
             if (text.isBlank()) return // nothing readable: skip safely
+            if(Regex("^(?:[^:]+: )?(?:Reacted .+ to |You reacted |Reaction to )",RegexOption.IGNORE_CASE).containsMatchIn(text))return
             if (sender.isBlank()) sender = sbn.packageName
 
             val label = try {

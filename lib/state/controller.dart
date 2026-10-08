@@ -25,8 +25,12 @@ class ReplierController extends ChangeNotifier {
     required this.bridge,
     this.provider = const LocalRuleProvider(),
     this.replySettings,
+    this.draftTimeout = const Duration(seconds: 120),
   });
 
+  final Duration draftTimeout;
+  Future<void> _draftQueue = Future.value();
+  final Set<String> _queued = {};
   final EventStore store;
   final ReplierBridge bridge;
   AiProvider provider;
@@ -99,7 +103,7 @@ class ReplierController extends ChangeNotifier {
     LocalModelSpec spec, {
     required bool download,
   }) async {
-    final r = await bridge.resources();
+    final r = await bridge.resources().timeout(const Duration(seconds: 10));
     if (download) {
       final partial = downloads?.partFile(spec);
       final have = partial != null && await partial.exists()
@@ -119,6 +123,7 @@ class ReplierController extends ChangeNotifier {
   }
 
   Future<void> start() async {
+    await store.recoverInterruptedDrafts();
     masterEnabled = await bridge.masterEnabled();
     await refreshPermissions();
     _sub = bridge.events().listen((e) {
@@ -140,9 +145,20 @@ class ReplierController extends ChangeNotifier {
     notifyListeners();
   }
 
+  static bool isNonMessage(String package, String text) =>
+      {
+        'com.ambi.gold_paper_trading',
+        'com.ambi.lookout',
+        'com.friday.assistant',
+      }.contains(package) ||
+      RegExp(
+        r'^(?:[^:]+: )?(?:Reacted .+ to |You reacted |Reaction to )',
+        caseSensitive: false,
+      ).hasMatch(text);
   Future<void> _onEvent(Map<String, dynamic> raw) async {
     if (legacyBlocked || !masterEnabled) return;
     final text = raw['text']?.toString() ?? '';
+    if (isNonMessage(raw['package']?.toString() ?? '', text)) return;
     if (text.trim().isEmpty) return; // missing notification text: skip safely
     final e = store.addIfNew(
       notifKey: raw['notifKey']?.toString() ?? '',
@@ -167,7 +183,19 @@ class ReplierController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> generate(MessageEvent e) async {
+  Future<void> generate(MessageEvent e) {
+    if (!_queued.add(e.id)) return Future.value();
+    final epoch = _generationEpoch;
+    final result = _draftQueue
+        .then((_) async {
+          if (epoch == _generationEpoch) await _generate(e);
+        })
+        .whenComplete(() => _queued.remove(e.id));
+    _draftQueue = result.catchError((Object _) {});
+    return result;
+  }
+
+  Future<void> _generate(MessageEvent e) async {
     if (e.status != 'new' &&
         e.status != 'generated' &&
         e.status != 'generation_failed')
@@ -194,11 +222,13 @@ class ReplierController extends ChangeNotifier {
           download: false,
         );
       if (!masterEnabled || epoch != _generationEpoch) return;
-      final draft = await provider.generateReply(
-        sender: e.sender,
-        text: e.text,
-        history: store.replyHistory(e),
-      );
+      final draft = await provider
+          .generateReply(
+            sender: e.sender,
+            text: e.text,
+            history: store.replyHistory(e),
+          )
+          .timeout(draftTimeout);
       if (e.status == 'generating' &&
           masterEnabled &&
           epoch == _generationEpoch) {
@@ -210,12 +240,25 @@ class ReplierController extends ChangeNotifier {
       if (e.status == 'generating' &&
           masterEnabled &&
           epoch == _generationEpoch) {
-        e.status = cloudEnabled ? 'generated' : 'generation_failed';
-        if (cloudEnabled) e.generatedReply = "I'll get back to you on that.";
-        e.generationError = error is ReplyGenerationException
+        e.status = 'generation_failed';
+        e.generatedReply = '';
+        if (error is TimeoutException)
+          unawaited(
+            cancelLocal()
+                .timeout(const Duration(seconds: 5))
+                .catchError((Object _) {}),
+          );
+        e.generationError = error is TimeoutException
+            ? 'Draft timed out while loading or generating. Nothing sent. Check the selected AI provider in Settings, then Retry or Edit.'
+            : error is ReplyGenerationException
             ? error.message
             : 'Could not generate a draft. Tap Retry or Edit.';
       }
+    }
+    if (e.status == 'generating') {
+      e.status = 'generation_failed';
+      e.generationError =
+          'Draft paused or settings changed. Nothing sent. Tap Retry or Edit.';
     }
     await store.save(e);
     notifyListeners();

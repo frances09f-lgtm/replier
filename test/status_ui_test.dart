@@ -26,7 +26,8 @@ class PreviewStore extends EventStore {
   @override
   List<MessageEvent> newestFirst() => [m];
   @override
-  List<MessageEvent> pendingReview() => [];
+  List<MessageEvent> pendingReview() =>
+      m.status == 'generation_failed' ? [m] : [];
 }
 
 void main() {
@@ -49,6 +50,25 @@ void main() {
         ),
       ),
     );
+    await t.pumpAndSettle();
+    final s = c.store as PreviewStore;
+    s.m.status = 'generation_failed';
+    s.m.generationError =
+        'Draft timed out while loading. Nothing sent. Retry or Edit.';
+    c.notifyListeners();
+    await t.pumpAndSettle();
+    expect(find.text('Retry'), findsOneWidget);
+    await t.runAsync(() async {
+      final im =
+          await (key.currentContext!.findRenderObject()
+                  as RenderRepaintBoundary)
+              .toImage();
+      final b = await im.toByteData(format: ui.ImageByteFormat.png);
+      await File('/tmp/replier-draft-recovery.png')
+          .writeAsBytes(b!.buffer.asUint8List());
+    });
+    s.m.status = 'opened_unverified';
+    c.notifyListeners();
     await t.pumpAndSettle();
     await t.tap(find.text('Logs'));
     await t.pumpAndSettle();

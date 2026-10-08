@@ -20,6 +20,15 @@ class EventStore {
     _seen = await Hive.openBox<String>(_seenBox);
   }
 
+  Future<void> recoverInterruptedDrafts() async {
+    for (final e
+        in _events.values.where((e) => e.status == 'generating').toList()) {
+      e.status = 'generation_failed';
+      e.generationError = 'Draft interrupted by an app restart. Nothing sent. Tap Retry or Edit.';
+      await save(e);
+    }
+  }
+
   /// Returns the stored event, or null when this notification key was
   /// already processed (duplicate suppression).
   MessageEvent? addIfNew({

@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:async';
+
+import 'package:replier/services/ai/ai_provider.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
@@ -20,6 +23,17 @@ class FakeBridge extends ReplierBridge {
 
   @override
   Future<String> openAndSend(String key, String text) async => fallback;
+}
+
+class StuckProvider implements AiProvider {
+  @override
+  String get name => 'Stuck test provider';
+  @override
+  Future<String> generateReply({
+    required String sender,
+    required String text,
+    List<Map<String, String>> history = const [],
+  }) => Completer<String>().future;
 }
 
 void main() {
@@ -58,6 +72,26 @@ void main() {
         )!
         ..generatedReply = 'Hi'
         ..status = 'generated';
+  test(
+    'draft timeout frees queue and shows Retry instead of fabricated draft',
+    () async {
+      c.dispose();
+      c = ReplierController(
+        store: store,
+        bridge: bridge,
+        provider: StuckProvider(),
+        draftTimeout: const Duration(milliseconds: 25),
+      );
+      final m = e();
+      await c.generate(m);
+      expect(m.status, 'generation_failed');
+      expect(m.generatedReply, isEmpty);
+      expect(m.generationError, contains('timed out'));
+      await c.generate(m);
+      expect(m.status, 'generation_failed');
+      expect(bridge.calls, 0);
+    },
+  );
   test(
     'master pause blocks generation and send, resume keeps reviewed send',
     () async {

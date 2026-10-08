@@ -5,8 +5,29 @@ import 'package:hive/hive.dart';
 import 'package:replier/models/message_event.dart';
 import 'package:replier/services/ai/ai_provider.dart';
 import 'package:replier/services/event_store.dart';
+import 'package:replier/state/controller.dart';
 
 void main() {
+  test('known watch apps and reaction-only notifications are not messages', () {
+    expect(
+      ReplierController.isNonMessage(
+        'com.ambi.gold_paper_trading',
+        'Watching 1 open position',
+      ),
+      true,
+    );
+    expect(
+      ReplierController.isNonMessage(
+        'com.whatsapp',
+        'Instinct: Reacted 👍 to "Nope"',
+      ),
+      true,
+    );
+    expect(
+      ReplierController.isNonMessage('com.whatsapp', 'Are you coming?'),
+      false,
+    );
+  });
   late Directory dir;
   late EventStore store;
 
@@ -40,6 +61,17 @@ void main() {
     at: DateTime(2026, 10, 7, 3, 0),
   );
 
+  test(
+    'restart recovers stuck drafting without altering sent history',
+    () async {
+      final e = add('restart')!..status = 'generating';
+      await store.save(e);
+      await store.recoverInterruptedDrafts();
+      expect(e.status, 'generation_failed');
+      expect(e.generationError, contains('restart'));
+      expect(store.pendingReview(), contains(e));
+    },
+  );
   test('stores a new notification event', () {
     expect(add('k1'), isNotNull);
     expect(store.newestFirst().length, 1);
