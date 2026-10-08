@@ -93,6 +93,19 @@ void main() {
     },
   );
   test(
+    'Retry immediately shows queued provider feedback before execution',
+    () async {
+      final m = e();
+      final future = c.generate(m);
+      expect(m.status, 'queued');
+      expect(c.generationNote, contains('Queued draft'));
+      expect(c.isQueued(m.id), true);
+      await future;
+      expect(m.status, 'generated');
+      expect(c.isQueued(m.id), false);
+    },
+  );
+  test(
     'master pause blocks generation and send, resume keeps reviewed send',
     () async {
       final m = e();

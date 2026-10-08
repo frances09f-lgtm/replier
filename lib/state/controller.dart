@@ -183,12 +183,42 @@ class ReplierController extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool isQueued(String id) => _queued.contains(id);
+  String generationNote = '';
   Future<void> generate(MessageEvent e) {
-    if (!_queued.add(e.id)) return Future.value();
+    if (!masterEnabled || legacyBlocked) {
+      generationNote = !masterEnabled
+          ? 'Replier is paused. Turn it on before Retry.'
+          : 'Old Replier access is still active. Turn it off before Retry.';
+      notifyListeners();
+      return Future.value();
+    }
+    if (!_queued.add(e.id)) {
+      generationNote =
+          'This message is already queued. Waiting for the active draft.';
+      notifyListeners();
+      return Future.value();
+    }
+    generationNote = 'Queued draft using $brainName';
+    if (e.status == 'new' ||
+        e.status == 'generation_failed' ||
+        e.status == 'generated') {
+      e.status = 'queued';
+      e.generationError = 'Waiting for the active draft. Nothing sent.';
+      unawaited(store.save(e));
+    }
+    notifyListeners();
     final epoch = _generationEpoch;
     final result = _draftQueue
         .then((_) async {
-          if (epoch == _generationEpoch) await _generate(e);
+          if (epoch == _generationEpoch) {
+            await _generate(e);
+          } else if (e.status == 'queued') {
+            e.status = 'generation_failed';
+            e.generationError = 'Queue paused. Retry after turning Replier on.';
+            await store.save(e);
+            notifyListeners();
+          }
         })
         .whenComplete(() => _queued.remove(e.id));
     _draftQueue = result.catchError((Object _) {});
@@ -196,7 +226,8 @@ class ReplierController extends ChangeNotifier {
   }
 
   Future<void> _generate(MessageEvent e) async {
-    if (e.status != 'new' &&
+    if (e.status != 'queued' &&
+        e.status != 'new' &&
         e.status != 'generated' &&
         e.status != 'generation_failed')
       return;
@@ -317,7 +348,9 @@ class ReplierController extends ChangeNotifier {
         e.status == 'approved') {
       return 'Already attempted. Check the chat before trying again.';
     }
-    if (e.status == 'rejected' || e.status == 'generating')
+    if (e.status == 'rejected' ||
+        e.status == 'generating' ||
+        e.status == 'queued')
       return 'This draft is not ready to send.';
     if (e.status == 'superseded')
       return 'A newer message arrived. Review the newest draft instead.';

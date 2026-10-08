@@ -51,6 +51,8 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    c.notifAccess = true;
+    c.accessibilityAccess = true;
     final s = c.store as PreviewStore;
     s.m.status = 'generation_failed';
     s.m.generationError =

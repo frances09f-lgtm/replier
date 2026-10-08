@@ -22,7 +22,9 @@ class EventStore {
 
   Future<void> recoverInterruptedDrafts() async {
     for (final e
-        in _events.values.where((e) => e.status == 'generating').toList()) {
+        in _events.values
+            .where((e) => (e.status == 'generating' || e.status == 'queued'))
+            .toList()) {
       e.status = 'generation_failed';
       e.generationError = 'Draft interrupted by an app restart. Nothing sent. Tap Retry or Edit.';
       await save(e);
@@ -50,7 +52,8 @@ class EventStore {
     for (final previous in _events.values) {
       if (previous.notifKey == notifKey &&
           previous.appPackage == appPackage &&
-          (previous.status == 'new' ||
+          (previous.status == 'queued' ||
+              previous.status == 'new' ||
               previous.status == 'generated' ||
               previous.status == 'generating' ||
               previous.status == 'generation_failed')) {
@@ -91,6 +94,7 @@ class EventStore {
   List<MessageEvent> pendingReview() => newestFirst()
       .where(
         (e) =>
+            e.status == 'queued' ||
             e.status == 'generated' ||
             e.status == 'new' ||
             e.status == 'generating' ||

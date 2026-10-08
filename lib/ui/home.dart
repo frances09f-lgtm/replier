@@ -140,8 +140,8 @@ class _Dashboard extends StatelessWidget {
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 4),
-        const Text(
-          'AI drafts only. Every send needs your review and tap.',
+        Text(
+          'AI: ${c.brainName}. Drafts need review before sending.',
           style: TextStyle(color: Colors.white54, fontSize: 12),
         ),
         const SizedBox(height: 8),
@@ -326,7 +326,9 @@ class _ReplyCard extends StatelessWidget {
             ),
             const Divider(height: 16),
             Text(
-              e.status == 'generating'
+              e.status == 'queued'
+                  ? 'Queued for drafting'
+                  : e.status == 'generating'
                   ? 'Drafting…'
                   : e.generatedReply.isEmpty
                   ? e.status == 'new'
@@ -344,9 +346,18 @@ class _ReplyCard extends StatelessWidget {
             Wrap(
               spacing: 8,
               children: [
-                if (e.status == 'generation_failed' || e.status == 'new')
+                if (e.status == 'generation_failed' ||
+                    e.status == 'new' ||
+                    e.status == 'queued')
                   TextButton(
-                    onPressed: c.masterEnabled ? () => c.generate(e) : null,
+                    onPressed: c.masterEnabled
+                        ? () {
+                            c.generate(e);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(c.generationNote)),
+                            );
+                          }
+                        : null,
                     child: const Text('Retry'),
                   ),
                 FilledButton.icon(
