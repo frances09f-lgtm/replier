@@ -88,6 +88,18 @@ void main() {
     await c.approve(m);
     expect(bridge.calls, 0);
   });
-  test('old active listener blocks outgoing attempt',()async{c.legacyNotification=true;final m=e();expect(await c.approve(m),contains('Turn off old'));expect(bridge.calls,0);});
-
+  test('old active listener blocks outgoing attempt', () async {
+    c.legacyNotification = true;
+    final m = e();
+    expect(await c.approve(m), contains('Turn off old'));
+    expect(bridge.calls, 0);
+  });
+  test('generating or rejected drafts cannot be approved', () async {
+    final m = e()..status = 'generating';
+    await c.approve(m, editedText: 'hello');
+    expect(bridge.calls, 0);
+    m.status = 'rejected';
+    await c.approve(m);
+    expect(bridge.calls, 0);
+  });
 }

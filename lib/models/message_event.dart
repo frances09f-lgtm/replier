@@ -16,6 +16,7 @@ class MessageEvent extends HiveObject {
     this.generatedReply = '',
     this.status = 'new',
     this.finalReply = '',
+    this.generationError = '',
   });
 
   final String id;
@@ -28,6 +29,7 @@ class MessageEvent extends HiveObject {
   String generatedReply;
   String status;
   String finalReply;
+  String generationError;
 
   String get statusLabel => switch (status) {
     'submitted' => 'Submitted (delivery unconfirmed)',
@@ -61,13 +63,14 @@ class MessageEventAdapter extends TypeAdapter<MessageEvent> {
       generatedReply: f[7] as String? ?? '',
       status: f[8] as String? ?? 'new',
       finalReply: f[9] as String? ?? '',
+      generationError: f[10] as String? ?? '',
     );
   }
 
   @override
   void write(BinaryWriter writer, MessageEvent e) {
     writer
-      ..writeByte(10)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(e.id)
       ..writeByte(1)
@@ -87,6 +90,8 @@ class MessageEventAdapter extends TypeAdapter<MessageEvent> {
       ..writeByte(8)
       ..write(e.status)
       ..writeByte(9)
-      ..write(e.finalReply);
+      ..write(e.finalReply)
+      ..writeByte(10)
+      ..write(e.generationError);
   }
 }

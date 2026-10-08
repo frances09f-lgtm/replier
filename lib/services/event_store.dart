@@ -41,7 +41,10 @@ class EventStore {
     for (final previous in _events.values) {
       if (previous.notifKey == notifKey &&
           previous.appPackage == appPackage &&
-          (previous.status == 'new' || previous.status == 'generated')) {
+          (previous.status == 'new' ||
+              previous.status == 'generated' ||
+              previous.status == 'generating' ||
+              previous.status == 'generation_failed')) {
         previous.status = 'superseded';
         _events.put(previous.id, previous);
       }
@@ -77,8 +80,48 @@ class EventStore {
       _events.values.toList()..sort((a, b) => b.at.compareTo(a.at));
 
   List<MessageEvent> pendingReview() => newestFirst()
-      .where((e) => e.status == 'generated' || e.status == 'new')
+      .where(
+        (e) =>
+            e.status == 'generated' ||
+            e.status == 'new' ||
+            e.status == 'generating' ||
+            e.status == 'generation_failed',
+      )
       .toList();
+
+  /// Conservative chat boundary: app + notification slot + exact sender.
+  /// Ambiguous or changed identifiers lose context rather than leak another chat.
+  List<Map<String, String>> replyHistory(MessageEvent current) {
+    final previous = newestFirst()
+        .where(
+          (e) =>
+              e.id != current.id &&
+              e.at.isBefore(current.at) &&
+              e.appPackage == current.appPackage &&
+              e.notifKey == current.notifKey &&
+              e.sender == current.sender &&
+              current.at.difference(e.at).inHours < 24,
+        )
+        .take(6)
+        .toList()
+        .reversed;
+    final turns = <Map<String, String>>[];
+    for (final e in previous) {
+      turns.add({
+        'role': 'user',
+        'content': e.text.length > 800 ? e.text.substring(0, 800) : e.text,
+      });
+      if (e.status == 'submitted' && e.finalReply.isNotEmpty) {
+        turns.add({
+          'role': 'assistant',
+          'content': e.finalReply.length > 600
+              ? e.finalReply.substring(0, 600)
+              : e.finalReply,
+        });
+      }
+    }
+    return turns;
+  }
 
   Future<void> save(MessageEvent e) => e.save();
 }

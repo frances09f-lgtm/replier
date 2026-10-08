@@ -3,7 +3,11 @@
 /// (cloud or on-device) slot in behind this interface in later versions.
 abstract class AiProvider {
   String get name;
-  Future<String> generateReply({required String sender, required String text});
+  Future<String> generateReply({
+    required String sender,
+    required String text,
+    List<Map<String, String>> history = const [],
+  });
 }
 
 class LocalRuleProvider implements AiProvider {
@@ -16,6 +20,7 @@ class LocalRuleProvider implements AiProvider {
   Future<String> generateReply({
     required String sender,
     required String text,
+    List<Map<String, String>> history = const [],
   }) async {
     final t = text.trim().toLowerCase();
     if (t.isEmpty) return '';

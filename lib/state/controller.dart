@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 
 import '../models/message_event.dart';
 import '../services/ai/ai_provider.dart';
+import '../services/ai/groq_provider.dart';
+import '../services/ai/reply_settings.dart';
 import '../services/bridge.dart';
 import '../services/event_store.dart';
 import '../services/usage_reporter.dart';
@@ -15,11 +17,19 @@ class ReplierController extends ChangeNotifier {
     required this.store,
     required this.bridge,
     this.provider = const LocalRuleProvider(),
+    this.replySettings,
   });
 
   final EventStore store;
   final ReplierBridge bridge;
-  final AiProvider provider;
+  AiProvider provider;
+  final ReplySettings? replySettings;
+  bool get cloudEnabled => replySettings?.enabled ?? true;
+  String get brainName => replySettings == null
+      ? provider.name
+      : cloudEnabled
+      ? provider.name
+      : "Groq off - write replies manually";
 
   StreamSubscription? _sub;
   bool autoReplyEnabled = false; // master switch; V1 stays preview-only
@@ -36,7 +46,9 @@ class ReplierController extends ChangeNotifier {
 
   Future<void> start() async {
     await refreshPermissions();
-    _sub = bridge.events().listen(_onEvent);
+    _sub = bridge.events().listen((e) {
+      _onEvent(e).catchError((Object _) {});
+    });
     for (final e in await bridge.drainPending()) {
       _onEvent(e);
     }
@@ -68,13 +80,56 @@ class ReplierController extends ChangeNotifier {
       ),
     );
     if (e == null) return; // duplicate notification
-    e.generatedReply = await provider.generateReply(
-      sender: e.sender,
-      text: e.text,
-    );
-    if (e.status != 'superseded') e.status = 'generated';
+    await generate(e);
+  }
+
+  Future<void> configure(String key, String model, bool enabled) async {
+    await replySettings!.save(key, model, enabled);
+    if (provider is GroqProvider)
+      (provider as GroqProvider).client.close(force: true);
+    provider = GroqProvider(key: key.trim(), model: model);
+    notifyListeners();
+  }
+
+  Future<void> generate(MessageEvent e) async {
+    if (e.status != 'new' &&
+        e.status != 'generated' &&
+        e.status != 'generation_failed')
+      return;
+    if (legacyBlocked) return;
+    e.status = 'generating';
+    e.generatedReply = '';
+    e.generationError = '';
     await store.save(e);
-    UsageReporter.report('draft_created');
+    notifyListeners();
+    try {
+      if (!cloudEnabled)
+        throw const ReplyGenerationException(
+          'Groq is off. Enable it in Settings or tap Edit.',
+        );
+      if (e.text.length > 4000)
+        throw const ReplyGenerationException(
+          'Message too long for a short reply. Tap Edit.',
+        );
+      final draft = await provider.generateReply(
+        sender: e.sender,
+        text: e.text,
+        history: store.replyHistory(e),
+      );
+      if (e.status == 'generating') {
+        e.generatedReply = draft;
+        e.status = 'generated';
+        UsageReporter.report('draft_created');
+      }
+    } catch (error) {
+      if (e.status == 'generating') {
+        e.status = 'generation_failed';
+        e.generationError = error is ReplyGenerationException
+            ? error.message
+            : 'Could not generate a draft. Tap Retry or Edit.';
+      }
+    }
+    await store.save(e);
     notifyListeners();
   }
 
@@ -93,6 +148,8 @@ class ReplierController extends ChangeNotifier {
         e.status == 'approved') {
       return 'Already attempted. Check the chat before trying again.';
     }
+    if (e.status == 'rejected' || e.status == 'generating')
+      return 'This draft is not ready to send.';
     if (e.status == 'superseded')
       return 'A newer message arrived. Review the newest draft instead.';
     if (legacyBlocked)
@@ -146,6 +203,8 @@ class ReplierController extends ChangeNotifier {
   @override
   void dispose() {
     _sub?.cancel();
+    if (provider is GroqProvider)
+      (provider as GroqProvider).client.close(force: true);
     super.dispose();
   }
 }

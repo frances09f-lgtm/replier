@@ -31,7 +31,9 @@ class PreviewStore extends EventStore {
 
 void main() {
   testWidgets('unverified history fits phone', (t) async {
-    final c = ReplierController(store: PreviewStore(), bridge: ReplierBridge())..legacyInstalled=true..legacyNotification=true;
+    final c = ReplierController(store: PreviewStore(), bridge: ReplierBridge())
+      ..legacyInstalled = true
+      ..legacyNotification = true;
     await t.runAsync(() async {
       final f = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
       final l = FontLoader('Roboto')
@@ -54,7 +56,7 @@ void main() {
     await t.pumpAndSettle();
     expect(t.takeException(), isNull);
     expect(find.text('Chat opened (send unconfirmed)'), findsOneWidget);
-    expect(find.text('Old Replier is installed'),findsOneWidget);
+    expect(find.text('Old Replier is installed'), findsOneWidget);
     await t.runAsync(() async {
       final im =
           await (key.currentContext!.findRenderObject()

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/message_event.dart';
+import '../services/ai/reply_settings.dart';
 import '../state/controller.dart';
 
 class ReplierHome extends StatefulWidget {
@@ -103,7 +104,7 @@ class _Dashboard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         const Text(
-          'V1 sends nothing on its own - every reply below waits for your tap.',
+          'Groq drafts only. Every send needs your review and tap.',
           style: TextStyle(color: Colors.white54, fontSize: 12),
         ),
         const SizedBox(height: 8),
@@ -288,26 +289,45 @@ class _ReplyCard extends StatelessWidget {
             ),
             const Divider(height: 16),
             Text(
-              e.generatedReply.isEmpty ? '(no draft)' : e.generatedReply,
+              e.status == 'generating'
+                  ? 'Drafting with Groq…'
+                  : e.generatedReply.isEmpty
+                  ? 'No draft yet'
+                  : e.generatedReply,
               style: const TextStyle(fontSize: 14),
             ),
+            if (e.generationError.isNotEmpty)
+              Text(
+                e.generationError,
+                style: const TextStyle(color: Colors.amber),
+              ),
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              spacing: 8,
               children: [
+                if (e.status == 'generation_failed' || e.status == 'new')
+                  TextButton(
+                    onPressed: () => c.generate(e),
+                    child: const Text('Retry'),
+                  ),
                 FilledButton.icon(
                   icon: const Icon(Icons.check, size: 16),
                   label: const Text('Approve'),
-                  onPressed: () async {
-                    final note = await c.approve(e);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context)
-                          .showSnackBar(SnackBar(content: Text(note)));
-                    }
-                  },
+                  onPressed: e.status != 'generated' || e.generatedReply.isEmpty
+                      ? null
+                      : () async {
+                          final note = await c.approve(e);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(SnackBar(content: Text(note)));
+                          }
+                        },
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton(
-                  onPressed: () => _editAndApprove(context),
+                  onPressed: e.status == 'generating'
+                      ? null
+                      : () => _editAndApprove(context),
                   child: const Text('Edit'),
                 ),
                 const SizedBox(width: 8),
@@ -385,19 +405,15 @@ class _SettingsState extends State<_Settings> {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        SwitchListTile(
-          title: const Text('Auto-reply'),
-          subtitle: const Text(
-            'V1 sends nothing automatically - replies are drafted for your review. Automatic sending arrives in V2.',
+        const ListTile(
+          title: Text('Review before sending'),
+          subtitle: Text(
+            'Always on. Replier never sends an AI reply automatically.',
           ),
-          value: c.autoReplyEnabled,
-          onChanged: (v) => c.setAutoReply(v),
         ),
         const Divider(),
-        ListTile(
-          title: const Text('Reply brain'),
-          subtitle: Text(c.provider.name),
-        ),
+        ListTile(title: const Text('Reply brain'), subtitle: Text(c.brainName)),
+        if (c.replySettings != null) _GroqSettings(c: c),
         ListTile(
           title: const Text('Notification access'),
           subtitle: Text(c.notifAccess ? 'Granted' : 'Not granted'),
@@ -466,6 +482,154 @@ class _LegacyCard extends StatelessWidget {
               TextButton(
                 onPressed: c.refreshPermissions,
                 child: const Text('Recheck'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _GroqSettings extends StatefulWidget {
+  const _GroqSettings({required this.c});
+  final ReplierController c;
+  @override
+  State<_GroqSettings> createState() => _GroqSettingsState();
+}
+
+class _GroqSettingsState extends State<_GroqSettings> {
+  final keyField = TextEditingController();
+  late String model;
+  late bool enabled;
+  bool saving = false;
+  @override
+  void initState() {
+    super.initState();
+    model = widget.c.replySettings!.model;
+    enabled = widget.c.replySettings!.enabled;
+  }
+
+  @override
+  void dispose() {
+    keyField.clear();
+    keyField.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Groq API settings',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'When enabled, incoming text and up to 6 recent messages from the same chat, plus submitted replies, go to Groq. History is notification-only, not the full chat. Groq may retain data for limited reliability/abuse checks unless ZDR is enabled in your account.',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: keyField,
+            obscureText: true,
+            enableSuggestions: false,
+            autocorrect: false,
+            decoration: InputDecoration(
+              labelText: widget.c.replySettings!.key.isEmpty
+                  ? 'Paste your Groq key'
+                  : 'Key saved - paste to replace',
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const Text(
+            'Encrypted on this phone. Never built into the APK. Do not send keys in chat.',
+            style: TextStyle(fontSize: 12, color: Colors.white70),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: model,
+            items: ReplySettings.models
+                .map(
+                  (m) => DropdownMenuItem(
+                    value: m,
+                    child: Text(m, style: const TextStyle(fontSize: 12)),
+                  ),
+                )
+                .toList(),
+            onChanged: (m) => setState(() => model = m!),
+            decoration: const InputDecoration(labelText: 'Model'),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Use Groq for drafts'),
+            subtitle: const Text(
+              'Off means manual replies. Local AI fallback is not installed yet.',
+            ),
+            value: enabled,
+            onChanged: (v) => setState(() => enabled = v),
+          ),
+          Wrap(
+            spacing: 8,
+            children: [
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        setState(() => saving = true);
+                        try {
+                          final key = keyField.text.trim().isEmpty
+                              ? widget.c.replySettings!.key
+                              : keyField.text.trim();
+                          if (enabled && key.isEmpty)
+                            throw Exception('missing key');
+                          await widget.c.configure(key, model, enabled);
+                          keyField.clear();
+                          if (context.mounted)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Saved. New drafts use these settings.',
+                                ),
+                              ),
+                            );
+                        } catch (_) {
+                          if (context.mounted)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Could not save. Add a key to enable Groq, or check secure storage.',
+                                ),
+                              ),
+                            );
+                        }
+                        if (mounted) setState(() => saving = false);
+                      },
+                child: const Text('Save'),
+              ),
+              TextButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        try {
+                          await widget.c.configure('', model, false);
+                          keyField.clear();
+                          if (mounted) setState(() => enabled = false);
+                        } catch (_) {
+                          if (context.mounted)
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Could not remove key. Try again.',
+                                ),
+                              ),
+                            );
+                        }
+                      },
+                child: const Text('Remove key'),
               ),
             ],
           ),

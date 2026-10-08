@@ -83,7 +83,6 @@ void main() {
     expect(await p.generateReply(sender: 'Mom', text: '   '), isEmpty);
   });
 
-  ;
   test(
     'same notification key accepts later text and replaces pending old draft',
     () {
@@ -106,5 +105,44 @@ void main() {
       at: DateTime(2026, 10, 7, 3, 1),
     );
     expect(second, isNotNull);
+  });
+  test(
+    'context includes only same app key sender, submitted outgoing only',
+    () async {
+      final first = add('k1')!;
+      first.finalReply = 'reviewed answer';
+      first.status = 'submitted';
+      await store.save(first);
+      add('other', text: 'another chat');
+      final current = store.addIfNew(
+        notifKey: 'k1',
+        appPackage: 'com.example.chat',
+        appLabel: 'Chat',
+        sender: 'Mom',
+        text: 'followup',
+        at: DateTime(2026, 10, 7, 3, 1),
+      )!;
+      final turns = store.replyHistory(current);
+      expect(turns.length, 2);
+      expect(turns.last['content'], 'reviewed answer');
+      expect(turns.any((e) => e['content'] == 'another chat'), false);
+    },
+  );
+  test('new notification supersedes in-flight generation', () {
+    final first = add('k1')!..status = 'generating';
+    add('k1', text: 'newer');
+    expect(first.status, 'superseded');
+  });
+  test('changed sender loses context even under same key', () {
+    add('k1');
+    final current = store.addIfNew(
+      notifKey: 'k1',
+      appPackage: 'com.example.chat',
+      appLabel: 'Chat',
+      sender: 'Other',
+      text: 'followup',
+      at: DateTime(2026, 10, 7, 3, 1),
+    )!;
+    expect(store.replyHistory(current), isEmpty);
   });
 }

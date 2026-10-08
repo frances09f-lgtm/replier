@@ -3,6 +3,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'models/message_event.dart';
 import 'services/bridge.dart';
+import 'services/ai/groq_provider.dart';
+import 'services/ai/reply_settings.dart';
 import 'services/event_store.dart';
 import 'services/usage_reporter.dart';
 import 'state/controller.dart';
@@ -16,7 +18,18 @@ Future<void> main() async {
   final store = EventStore();
   await store.init();
   UsageReporter.report('app_start');
-  final controller = ReplierController(store: store, bridge: ReplierBridge());
+  final settings = ReplySettings();
+  try {
+    await settings.load();
+  } catch (_) {
+    settings.enabled = false;
+  }
+  final controller = ReplierController(
+    store: store,
+    bridge: ReplierBridge(),
+    replySettings: settings,
+    provider: GroqProvider(key: settings.key, model: settings.model),
+  );
   await controller.start();
   runApp(ReplierApp(controller: controller));
 }
