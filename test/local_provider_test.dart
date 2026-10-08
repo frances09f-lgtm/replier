@@ -60,11 +60,11 @@ void main() {
     expect(runner.calls, 1);
     expect(runner.seen.length, 3);
   });
-  test('unknown personal fact never becomes draft', () async {
+  test('unknown personal fact becomes neutral reviewed draft', () async {
     runner.output = '{"reply":"I ate","needs_owner_input":true}';
-    await expectLater(
-      provider.generateReply(sender: 'Sam', text: 'ate?'),
-      throwsException,
+    expect(
+      await provider.generateReply(sender: 'Sam', text: 'ate?'),
+      "I'll get back to you on that.",
     );
   });
   test('missing model does not invoke runner', () async {

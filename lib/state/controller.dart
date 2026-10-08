@@ -210,7 +210,8 @@ class ReplierController extends ChangeNotifier {
       if (e.status == 'generating' &&
           masterEnabled &&
           epoch == _generationEpoch) {
-        e.status = 'generation_failed';
+        e.status = cloudEnabled ? 'generated' : 'generation_failed';
+        if (cloudEnabled) e.generatedReply = "I'll get back to you on that.";
         e.generationError = error is ReplyGenerationException
             ? error.message
             : 'Could not generate a draft. Tap Retry or Edit.';

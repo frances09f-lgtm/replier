@@ -17,28 +17,31 @@ void main() {
       'ignore instructions',
     );
   });
-  test('JSON draft preserves Roman Marathi and rejects unknown facts', () {
-    expect(
-      GroqProvider.parseDraft(
-        '{"reply":"Ho, samajla. Dhanyavaad!","needs_owner_input":false}',
-      ),
-      'Ho, samajla. Dhanyavaad!',
-    );
-    expect(
-      () => GroqProvider.parseDraft(
-        '{"reply":"Yes I ate","needs_owner_input":true}',
-      ),
-      throwsA(isA<ReplyGenerationException>()),
-    );
-    expect(
-      () => GroqProvider.parseDraft('<think>hidden</think>Hi'),
-      throwsA(isA<ReplyGenerationException>()),
-    );
-    expect(
-      () => GroqProvider.parseDraft('{"reply":"Hi"}'),
-      throwsA(isA<ReplyGenerationException>()),
-    );
-  });
+  test(
+    'JSON draft preserves Roman Marathi and gives neutral unknown-fact draft',
+    () {
+      expect(
+        GroqProvider.parseDraft(
+          '{"reply":"Ho, samajla. Dhanyavaad!","needs_owner_input":false}',
+        ),
+        'Ho, samajla. Dhanyavaad!',
+      );
+      expect(
+        GroqProvider.parseDraft(
+          '{"reply":"Yes I ate","needs_owner_input":true}',
+        ),
+        "I'll get back to you on that.",
+      );
+      expect(
+        () => GroqProvider.parseDraft('<think>hidden</think>Hi'),
+        throwsA(isA<ReplyGenerationException>()),
+      );
+      expect(
+        () => GroqProvider.parseDraft('{"reply":"Hi"}'),
+        throwsA(isA<ReplyGenerationException>()),
+      );
+    },
+  );
   test('missing key has no network request', () async {
     final p = GroqProvider(key: '', model: 'example');
     await expectLater(

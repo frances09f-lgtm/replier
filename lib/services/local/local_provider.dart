@@ -147,7 +147,7 @@ class LocalModelProvider implements AiProvider {
       final messages = GroqProvider.messages(sender, text, history);
       messages.first['content'] = messages.first['content']!.replaceFirst(
         'Return JSON only: {"reply":"...","needs_owner_input":false,"reason":""}.',
-        'Return only the final short reply text. For MCQ or quiz questions, answer the question directly with the option letter and answer when known. Do not add an acknowledgment or explanation of your drafting process. If an owner-specific fact is unknown, return {"needs_owner_input":true}.',
+        'Return only the final short reply text. For MCQ or quiz questions, answer the question directly with the option letter and answer when known. Do not add an acknowledgment or explanation of your drafting process. Always give a draft. For unknown owner-specific facts, give a natural noncommittal reply without inventing facts.',
       );
       // No silent cross-provider fallback and no cross-chat reusable session.
       if (messages.fold<int>(0, (n, m) => n + (m['content']?.length ?? 0)) >
@@ -193,9 +193,7 @@ class LocalModelProvider implements AiProvider {
       final obj = jsonDecode(text);
       if (obj is Map) {
         if (obj['needs_owner_input'] == true)
-          throw const ReplyGenerationException(
-            'This needs your personal answer. Tap Edit to write it.',
-          );
+          return "I'll get back to you on that.";
         if (obj['reply'] is String)
           text = (obj['reply'] as String).trim();
         else if (obj['answer'] is String)
