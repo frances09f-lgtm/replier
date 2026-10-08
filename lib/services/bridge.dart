@@ -9,6 +9,12 @@ class ReplierBridge {
   static const _control = MethodChannel('replier/control');
   static const _events = EventChannel('replier/events');
 
+  Future<Map<String, dynamic>> resources() async {
+    final raw = await _control.invokeMethod<Map>('resources');
+    if (raw == null) throw StateError('Could not read phone resources');
+    return Map<String, dynamic>.from(raw);
+  }
+
   Stream<Map<String, dynamic>> events() => _events.receiveBroadcastStream().map(
     (e) => Map<String, dynamic>.from(e as Map),
   );

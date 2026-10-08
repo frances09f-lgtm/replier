@@ -4,6 +4,8 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.app.ActivityManager
+import android.os.StatFs
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import io.flutter.embedding.android.FlutterActivity
@@ -33,6 +35,13 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CONTROL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "resources" -> {
+                        val info = ActivityManager.MemoryInfo()
+                        (getSystemService(ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)
+                        result.success(mapOf("availableRam" to info.availMem,
+                            "totalRam" to info.totalMem, "lowMemory" to info.lowMemory,
+                            "freeDisk" to StatFs(filesDir.path).availableBytes))
+                    }
                     "legacyStatus" -> result.success(LegacyMigration.status(this))
                     "drainEvents" -> result.success(ReplierNotificationListener.drainBuffer())
                     "permissionStatus" -> result.success(

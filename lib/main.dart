@@ -30,6 +30,11 @@ Future<void> main() async {
     replySettings: settings,
     provider: GroqProvider(key: settings.key, model: settings.model),
   );
+  try {
+    await controller.initLocal();
+  } catch (_) {
+    settings.mode = 'off';
+  }
   await controller.start();
   runApp(ReplierApp(controller: controller));
 }

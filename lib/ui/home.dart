@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/message_event.dart';
 import '../services/ai/reply_settings.dart';
 import '../state/controller.dart';
+import 'local_settings.dart';
 
 class ReplierHome extends StatefulWidget {
   const ReplierHome({super.key, required this.controller});
@@ -39,6 +40,9 @@ class _ReplierHomeState extends State<ReplierHome> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) c.refreshPermissions();
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached)
+      c.cancelLocal();
   }
 
   @override
@@ -104,7 +108,7 @@ class _Dashboard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         const Text(
-          'Groq drafts only. Every send needs your review and tap.',
+          'AI drafts only. Every send needs your review and tap.',
           style: TextStyle(color: Colors.white54, fontSize: 12),
         ),
         const SizedBox(height: 8),
@@ -290,7 +294,7 @@ class _ReplyCard extends StatelessWidget {
             const Divider(height: 16),
             Text(
               e.status == 'generating'
-                  ? 'Drafting with Groq…'
+                  ? 'Drafting…'
                   : e.generatedReply.isEmpty
                   ? 'No draft yet'
                   : e.generatedReply,
@@ -414,6 +418,7 @@ class _SettingsState extends State<_Settings> {
         const Divider(),
         ListTile(title: const Text('Reply brain'), subtitle: Text(c.brainName)),
         if (c.replySettings != null) _GroqSettings(c: c),
+        if (c.replySettings != null) LocalModelSettings(c: c),
         ListTile(
           title: const Text('Notification access'),
           subtitle: Text(c.notifAccess ? 'Granted' : 'Not granted'),
@@ -507,7 +512,7 @@ class _GroqSettingsState extends State<_GroqSettings> {
   void initState() {
     super.initState();
     model = widget.c.replySettings!.model;
-    enabled = widget.c.replySettings!.enabled;
+    enabled = widget.c.replySettings!.mode == 'groq';
   }
 
   @override
@@ -567,7 +572,7 @@ class _GroqSettingsState extends State<_GroqSettings> {
             contentPadding: EdgeInsets.zero,
             title: const Text('Use Groq for drafts'),
             subtitle: const Text(
-              'Off means manual replies. Local AI fallback is not installed yet.',
+              'Saving this selects Groq or Off. Local is selected separately below; no automatic cloud fallback.',
             ),
             value: enabled,
             onChanged: (v) => setState(() => enabled = v),

@@ -1,4 +1,11 @@
 import 'dart:async';
+import 'dart:io';
+
+import 'package:path_provider/path_provider.dart';
+
+import '../services/local/model_catalog.dart';
+import '../services/local/model_download.dart';
+import '../services/local/local_provider.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -24,12 +31,13 @@ class ReplierController extends ChangeNotifier {
   final ReplierBridge bridge;
   AiProvider provider;
   final ReplySettings? replySettings;
-  bool get cloudEnabled => replySettings?.enabled ?? true;
+  bool get cloudEnabled =>
+      replySettings == null ? true : replySettings!.mode != 'off';
   String get brainName => replySettings == null
       ? provider.name
       : cloudEnabled
       ? provider.name
-      : "Groq off - write replies manually";
+      : "AI off - write replies manually";
 
   StreamSubscription? _sub;
   bool autoReplyEnabled = false; // master switch; V1 stays preview-only
@@ -43,6 +51,69 @@ class ReplierController extends ChangeNotifier {
 
   List<MessageEvent> get pending => store.pendingReview();
   List<MessageEvent> get history => store.newestFirst();
+
+  ModelDownload? downloads;
+  Future<void> initLocal() async {
+    final root = await getApplicationSupportDirectory();
+    downloads = ModelDownload(Directory('${root.path}/models'));
+    if (replySettings?.mode == 'local') {
+      final spec = LocalModelSpec.all.firstWhere(
+        (m) => m.id == replySettings!.localModel,
+      );
+      provider = LocalModelProvider(
+        model: spec,
+        file: downloads!.modelFile(spec),
+      );
+    }
+  }
+
+  Future<void> configureLocal(LocalModelSpec spec) async {
+    if (downloads == null || !await downloads!.installed(spec))
+      throw const ReplyGenerationException('Download this model first.');
+    await cancelLocal();
+    if (provider is GroqProvider)
+      (provider as GroqProvider).client.close(force: true);
+    await replySettings!.saveLocal(spec.id);
+    provider = LocalModelProvider(
+      model: spec,
+      file: downloads!.modelFile(spec),
+    );
+    notifyListeners();
+  }
+
+  Future<void> configureOff() async {
+    await cancelLocal();
+    await replySettings!.off();
+    notifyListeners();
+  }
+
+  Future<void> cancelLocal() async {
+    if (provider is LocalModelProvider)
+      await (provider as LocalModelProvider).cancel();
+  }
+
+  Future<void> resourceGuard(
+    LocalModelSpec spec, {
+    required bool download,
+  }) async {
+    final r = await bridge.resources();
+    if (download) {
+      final partial = downloads?.partFile(spec);
+      final have = partial != null && await partial.exists()
+          ? await partial.length()
+          : 0;
+      if ((r['freeDisk'] as num).toInt() <
+          spec.bytes - have + 256 * 1024 * 1024)
+        throw const ReplyGenerationException(
+          'Not enough free storage. Free space before downloading.',
+        );
+    } else if (r['lowMemory'] == true ||
+        (r['availableRam'] as num).toInt() < spec.bytes + 700 * 1024 * 1024) {
+      throw const ReplyGenerationException(
+        'Not enough available RAM for this local model. Close other apps or use Groq.',
+      );
+    }
+  }
 
   Future<void> start() async {
     await refreshPermissions();
@@ -84,6 +155,7 @@ class ReplierController extends ChangeNotifier {
   }
 
   Future<void> configure(String key, String model, bool enabled) async {
+    await cancelLocal();
     await replySettings!.save(key, model, enabled);
     if (provider is GroqProvider)
       (provider as GroqProvider).client.close(force: true);
@@ -105,11 +177,16 @@ class ReplierController extends ChangeNotifier {
     try {
       if (!cloudEnabled)
         throw const ReplyGenerationException(
-          'Groq is off. Enable it in Settings or tap Edit.',
+          'AI is off. Choose Groq or Local in Settings, or tap Edit.',
         );
       if (e.text.length > 4000)
         throw const ReplyGenerationException(
           'Message too long for a short reply. Tap Edit.',
+        );
+      if (provider is LocalModelProvider)
+        await resourceGuard(
+          (provider as LocalModelProvider).model,
+          download: false,
         );
       final draft = await provider.generateReply(
         sender: e.sender,
@@ -203,6 +280,8 @@ class ReplierController extends ChangeNotifier {
   @override
   void dispose() {
     _sub?.cancel();
+    downloads?.cancel();
+    cancelLocal();
     if (provider is GroqProvider)
       (provider as GroqProvider).client.close(force: true);
     super.dispose();
