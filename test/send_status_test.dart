@@ -11,6 +11,8 @@ class FakeBridge extends ReplierBridge {
   String inline = 'no_inline', fallback = 'opened';
   int calls = 0;
   @override
+  Future<void> setMasterEnabled(bool enabled) async {}
+  @override
   Future<String> sendReply(String key, String text) async {
     calls++;
     return inline;
@@ -56,6 +58,23 @@ void main() {
         )!
         ..generatedReply = 'Hi'
         ..status = 'generated';
+  test(
+    'master pause blocks generation and send, resume keeps reviewed send',
+    () async {
+      final m = e();
+      await c.setMaster(false);
+      expect(c.masterEnabled, false);
+      expect(await c.approve(m), contains('paused'));
+      expect(bridge.calls, 0);
+      await c.generate(m);
+      expect(m.status, 'generated');
+      await c.setMaster(true);
+      expect(c.masterEnabled, true);
+      bridge.inline = 'submitted';
+      await c.approve(m);
+      expect(bridge.calls, 1);
+    },
+  );
   test('opened chat never becomes sent or approved; retries guarded', () async {
     final m = e();
     expect(await c.approve(m), contains('not confirmed'));

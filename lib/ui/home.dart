@@ -85,6 +85,39 @@ class _Dashboard extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
+        Card(
+          color: c.masterEnabled
+              ? const Color(0xFF173A2A)
+              : const Color(0xFF3B2A18),
+          child: SwitchListTile(
+            title: Text(
+              c.masterEnabled ? 'Replier ON' : 'Replier PAUSED',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              c.masterEnabled
+                  ? 'Captures new messages. Drafts need review before sending.'
+                  : 'No capture, no drafts, no sends. Saved history is kept.',
+            ),
+            value: c.masterEnabled,
+            onChanged: c.masterSaving
+                ? null
+                : (on) async {
+                    try {
+                      await c.setMaster(on);
+                    } catch (_) {
+                      if (context.mounted)
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Could not change the master switch. Try again.',
+                            ),
+                          ),
+                        );
+                    }
+                  },
+          ),
+        ),
         Row(
           children: [
             _PermCard(
@@ -311,13 +344,16 @@ class _ReplyCard extends StatelessWidget {
               children: [
                 if (e.status == 'generation_failed' || e.status == 'new')
                   TextButton(
-                    onPressed: () => c.generate(e),
+                    onPressed: c.masterEnabled ? () => c.generate(e) : null,
                     child: const Text('Retry'),
                   ),
                 FilledButton.icon(
                   icon: const Icon(Icons.check, size: 16),
                   label: const Text('Approve'),
-                  onPressed: e.status != 'generated' || e.generatedReply.isEmpty
+                  onPressed:
+                      !c.masterEnabled ||
+                          e.status != 'generated' ||
+                          e.generatedReply.isEmpty
                       ? null
                       : () async {
                           final note = await c.approve(e);

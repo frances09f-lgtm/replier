@@ -46,6 +46,15 @@ void main() {
         ..addFont(Future.value(ByteData.sublistView(await f.readAsBytes())));
       await l.load();
     });
+    await t.runAsync(() async {
+      final f = File(
+        "${Platform.environment['FLUTTER_ROOT'] ?? '/home/sandbox/flutter'}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf",
+      );
+      if (!await f.exists()) return;
+      final l = FontLoader('MaterialIcons')
+        ..addFont(Future.value(ByteData.sublistView(await f.readAsBytes())));
+      await l.load();
+    });
     await t.binding.setSurfaceSize(const Size(412, 950));
     final key = GlobalKey();
     await t.pumpWidget(
@@ -70,6 +79,16 @@ void main() {
     }
 
     expect(find.text('Kalavlyabaddal dhanyavaad!'), findsOneWidget);
+    expect(find.text('Replier ON'), findsOneWidget);
+    await capture('replier-master-on');
+    c.masterEnabled = false;
+    c.notifyListeners();
+    await t.pumpAndSettle();
+    expect(find.text('Replier PAUSED'), findsOneWidget);
+    await capture('replier-master-paused');
+    c.masterEnabled = true;
+    c.notifyListeners();
+    await t.pumpAndSettle();
     await capture('replier-context-draft');
     await t.tap(find.text('Settings'));
     await t.pumpAndSettle();
@@ -78,6 +97,15 @@ void main() {
     expect(t.takeException(), isNull);
     await capture('replier-groq-settings');
     c.dispose();
+    await t.runAsync(() async {
+      final f = File(
+        "${Platform.environment['FLUTTER_ROOT'] ?? '/home/sandbox/flutter'}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf",
+      );
+      if (!await f.exists()) return;
+      final l = FontLoader('MaterialIcons')
+        ..addFont(Future.value(ByteData.sublistView(await f.readAsBytes())));
+      await l.load();
+    });
     await t.binding.setSurfaceSize(null);
   });
 }

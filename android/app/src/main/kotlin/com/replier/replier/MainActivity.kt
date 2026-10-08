@@ -35,6 +35,11 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CONTROL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "masterEnabled" -> result.success(MasterPause.enabled(this))
+                    "setMasterEnabled" -> {
+                        if (MasterPause.set(this, call.argument<Boolean>("enabled") == true)) result.success(null)
+                        else result.error("storage", "Could not persist master switch", null)
+                    }
                     "resources" -> {
                         val info = ActivityManager.MemoryInfo()
                         (getSystemService(ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(info)

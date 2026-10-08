@@ -9,6 +9,17 @@ class ReplierBridge {
   static const _control = MethodChannel('replier/control');
   static const _events = EventChannel('replier/events');
 
+  Future<bool> masterEnabled() async {
+    try {
+      return await _control.invokeMethod<bool>('masterEnabled') ?? false;
+    } on MissingPluginException {
+      return true;
+    }
+  }
+
+  Future<void> setMasterEnabled(bool enabled) =>
+      _control.invokeMethod<void>('setMasterEnabled', {'enabled': enabled});
+
   Future<Map<String, dynamic>> resources() async {
     final raw = await _control.invokeMethod<Map>('resources');
     if (raw == null) throw StateError('Could not read phone resources');

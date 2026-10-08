@@ -23,9 +23,12 @@ class ReplierNotificationListener : NotificationListenerService() {
         @Volatile var sink: EventChannel.EventSink? = null
         private val buffer = ConcurrentLinkedQueue<Map<String, Any>>()
 
+        fun clearBuffer() { buffer.clear() }
+
         fun warm() { /* touch the class so the buffer exists */ }
 
         fun flushToSink() {
+            if (instance?.let { !MasterPause.enabled(it) } == true) { buffer.clear(); return }
             val s = sink ?: return
             while (true) {
                 val e = buffer.poll() ?: break
@@ -34,6 +37,7 @@ class ReplierNotificationListener : NotificationListenerService() {
         }
 
         fun drainBuffer(): List<Map<String, Any>> {
+            if (instance?.let { !MasterPause.enabled(it) } == true) { buffer.clear(); return emptyList() }
             val out = mutableListOf<Map<String, Any>>()
             while (true) {
                 out.add(buffer.poll() ?: break)
@@ -42,6 +46,7 @@ class ReplierNotificationListener : NotificationListenerService() {
         }
 
         private fun emit(event: Map<String, Any>) {
+            if (instance?.let { !MasterPause.enabled(it) } == true) return
             val s = sink
             if (s != null) s.success(event) else buffer.add(event)
         }
@@ -58,6 +63,7 @@ class ReplierNotificationListener : NotificationListenerService() {
         /// Send through the notification's own inline-reply action.
         /// submitted | no_inline | gone | error
         fun replyInline(context: Context, key: String, text: String): String {
+            if (!MasterPause.enabled(context)) return "paused"
             if (LegacyMigration.blocked(context)) return "old_access_active"
             if (text.isBlank()) return "error"
             val sbn = active(context, key) ?: return "gone"
@@ -72,6 +78,7 @@ class ReplierNotificationListener : NotificationListenerService() {
                         bundle.putCharSequence(ri.resultKey, text)
                     }
                     RemoteInput.addResultsToIntent(inputs, fill, bundle)
+                    if (!MasterPause.enabled(context)) return "paused"
                     action.actionIntent.send(context, 0, fill)
                     "submitted"
                 } catch (e: PendingIntent.CanceledException) {
@@ -86,11 +93,13 @@ class ReplierNotificationListener : NotificationListenerService() {
         /// No inline action: open the chat, queue the text for the
         /// accessibility service to type + send. opened | gone | error
         fun openChatAndQueueSend(context: Context, key: String, text: String): String {
+            if (!MasterPause.enabled(context)) return "paused"
             if (LegacyMigration.blocked(context)) return "old_access_active"
             val sbn = active(context, key) ?: return "gone"
             val pi = sbn.notification.contentIntent ?: return "error"
             return try {
                 ReplierAccessibilityService.queueSend(text)
+                if (!MasterPause.enabled(context)) { ReplierAccessibilityService.clearQueue(); return "paused" }
                 pi.send()
                 "opened"
             } catch (e: Exception) {
@@ -112,6 +121,7 @@ class ReplierNotificationListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         try {
+            if (!MasterPause.enabled(this)) return
             if (LegacyMigration.blocked(this)) return
             if (sbn.packageName == packageName) return // never process our own
             val n = sbn.notification ?: return

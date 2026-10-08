@@ -40,6 +40,9 @@ class ReplierController extends ChangeNotifier {
       : "AI off - write replies manually";
 
   StreamSubscription? _sub;
+  bool masterEnabled = true;
+  bool masterSaving = false;
+  int _generationEpoch = 0;
   bool autoReplyEnabled = false; // master switch; V1 stays preview-only
   bool notifAccess = false;
   bool accessibilityAccess = false;
@@ -116,6 +119,7 @@ class ReplierController extends ChangeNotifier {
   }
 
   Future<void> start() async {
+    masterEnabled = await bridge.masterEnabled();
     await refreshPermissions();
     _sub = bridge.events().listen((e) {
       _onEvent(e).catchError((Object _) {});
@@ -137,7 +141,7 @@ class ReplierController extends ChangeNotifier {
   }
 
   Future<void> _onEvent(Map<String, dynamic> raw) async {
-    if (legacyBlocked) return;
+    if (legacyBlocked || !masterEnabled) return;
     final text = raw['text']?.toString() ?? '';
     if (text.trim().isEmpty) return; // missing notification text: skip safely
     final e = store.addIfNew(
@@ -168,7 +172,8 @@ class ReplierController extends ChangeNotifier {
         e.status != 'generated' &&
         e.status != 'generation_failed')
       return;
-    if (legacyBlocked) return;
+    if (legacyBlocked || !masterEnabled) return;
+    final epoch = _generationEpoch;
     e.status = 'generating';
     e.generatedReply = '';
     e.generationError = '';
@@ -188,18 +193,23 @@ class ReplierController extends ChangeNotifier {
           (provider as LocalModelProvider).model,
           download: false,
         );
+      if (!masterEnabled || epoch != _generationEpoch) return;
       final draft = await provider.generateReply(
         sender: e.sender,
         text: e.text,
         history: store.replyHistory(e),
       );
-      if (e.status == 'generating') {
+      if (e.status == 'generating' &&
+          masterEnabled &&
+          epoch == _generationEpoch) {
         e.generatedReply = draft;
         e.status = 'generated';
         UsageReporter.report('draft_created');
       }
     } catch (error) {
-      if (e.status == 'generating') {
+      if (e.status == 'generating' &&
+          masterEnabled &&
+          epoch == _generationEpoch) {
         e.status = 'generation_failed';
         e.generationError = error is ReplyGenerationException
             ? error.message
@@ -208,6 +218,43 @@ class ReplierController extends ChangeNotifier {
     }
     await store.save(e);
     notifyListeners();
+  }
+
+  Future<void> setMaster(bool on) async {
+    if (masterSaving) return;
+    masterSaving = true;
+    final previous = masterEnabled;
+    if (!on) {
+      masterEnabled = false;
+      _generationEpoch++;
+    }
+    notifyListeners();
+    try {
+      await bridge.setMasterEnabled(on);
+      masterEnabled = on;
+      if (!on) {
+        await cancelLocal();
+        if (provider is GroqProvider) {
+          (provider as GroqProvider).client.close(force: true);
+          provider = GroqProvider(
+            key: replySettings?.key ?? '',
+            model: replySettings?.model ?? ReplySettings.models.first,
+          );
+        }
+        for (final e in history.where((e) => e.status == 'generating')) {
+          e.status = 'generation_failed';
+          e.generationError =
+              'Paused. Nothing sent. Retry after turning Replier on.';
+          await store.save(e);
+        }
+      }
+    } catch (_) {
+      masterEnabled = previous;
+      rethrow;
+    } finally {
+      masterSaving = false;
+      notifyListeners();
+    }
   }
 
   Future<void> reject(MessageEvent e) async {
@@ -219,6 +266,7 @@ class ReplierController extends ChangeNotifier {
 
   /// The ONLY send path in V1: explicit user approval of a reviewed reply.
   Future<String> approve(MessageEvent e, {String? editedText}) async {
+    if (!masterEnabled) return 'Replier is paused. Nothing sent.';
     if (e.status == 'sending' ||
         e.status == 'submitted' ||
         e.status == 'opened_unverified' ||
@@ -237,7 +285,13 @@ class ReplierController extends ChangeNotifier {
     e.status = 'sending';
     await store.save(e);
     notifyListeners();
+    if (!masterEnabled) {
+      e.status = 'generated';
+      await store.save(e);
+      return 'Replier is paused. Nothing sent.';
+    }
     var result = await bridge.sendReply(e.notifKey, text);
+    if (result == 'no_inline' && !masterEnabled) result = 'paused';
     if (result == 'no_inline') {
       // The app offers no inline reply action: open the chat and let the
       // accessibility service try to type + send.
@@ -252,6 +306,9 @@ class ReplierController extends ChangeNotifier {
         e.status = 'send_failed';
         lastSendNote = 'Could not send: the notification is gone.';
       }
+    } else if (result == 'paused') {
+      e.status = 'generated';
+      lastSendNote = 'Replier is paused. Nothing sent.';
     } else if (result == 'submitted' || result == 'sent') {
       e.status = 'submitted';
       lastSendNote = 'Reply submitted to the app. Delivery is not confirmed.';

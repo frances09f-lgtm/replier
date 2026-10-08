@@ -27,6 +27,7 @@ class ReplierAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (!MasterPause.enabled(this)) { clearQueue(); return }
         if (LegacyMigration.blocked(this)) { clearQueue(); return }
         val text = pendingText ?: return
         if (event == null) return
@@ -45,9 +46,11 @@ class ReplierAccessibilityService : AccessibilityService() {
             args.putCharSequence(
                 AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text
             )
+            if (!MasterPause.enabled(this)) { clearQueue(); return }
             edit.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
             val send = findSendNode(root)
             if (send != null) {
+                if (!MasterPause.enabled(this)) { clearQueue(); return }
                 send.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 clearQueue()
                 return
