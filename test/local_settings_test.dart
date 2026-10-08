@@ -47,10 +47,11 @@ void main() {
         ('Roboto', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
         (
           'MaterialIcons',
-          '/home/sandbox/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+          '${Platform.environment['FLUTTER_ROOT'] ?? '/home/sandbox/flutter'}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
         ),
       ]) {
         final f = File(item.$2);
+        if (!await f.exists()) continue;
         final l = FontLoader(item.$1)
           ..addFont(Future.value(ByteData.sublistView(await f.readAsBytes())));
         await l.load();
