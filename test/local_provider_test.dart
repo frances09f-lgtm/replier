@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:replier/services/local/local_provider.dart';
@@ -8,11 +9,21 @@ class FakeRunner implements LocalRunner {
   String output = '{"reply":"नमस्कार","needs_owner_input":false}';
   List<Map<String, String>> seen = [];
   int calls = 0;
+  int active = 0, maxActive = 0;
+  bool fail = false;
   @override
   Future<String> draft(String path, List<Map<String, String>> messages) async {
     calls++;
-    seen = messages;
-    return output;
+    active++;
+    if (active > maxActive) maxActive = active;
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      if (fail) throw StateError('native failure');
+      seen = messages;
+      return output;
+    } finally {
+      active--;
+    }
   }
 
   @override
@@ -70,6 +81,57 @@ void main() {
       throwsException,
     );
     expect(runner.calls, 0);
+  });
+  test('plain quiz text and reasoning wrapper accepted', () async {
+    runner.output = '<think>reasoning hidden</think>Answer: B) Shah Jahan';
+    expect(
+      await provider.generateReply(
+        sender: 'Meta AI',
+        text: 'Taj Mahal konत्या samratane bandhla? A) Akbar B) Shah Jahan',
+      ),
+      'B) Shah Jahan',
+    );
+    expect(runner.seen.first['content'], contains('MCQ or quiz'));
+  });
+  test('code fenced json and unicode plain text accepted', () {
+    expect(
+      LocalModelProvider.parseLocalDraft(
+        '```json\n{"reply":"B) Shah Jahan"}\n```',
+      ),
+      'B) Shah Jahan',
+    );
+    expect(LocalModelProvider.parseLocalDraft('हो, बोलूया.'), 'हो, बोलूया.');
+  });
+  test('format failure releases queue for next message', () async {
+    runner.output = '<think>only reasoning</think>';
+    await expectLater(
+      provider.generateReply(sender: 'A', text: 'one'),
+      throwsException,
+    );
+    runner.output = 'B) Shah Jahan';
+    expect(
+      await provider.generateReply(sender: 'A', text: 'two'),
+      'B) Shah Jahan',
+    );
+  });
+  test('native failure releases queue for retry', () async {
+    runner.fail = true;
+    await expectLater(
+      provider.generateReply(sender: 'A', text: 'one'),
+      throwsException,
+    );
+    runner.fail = false;
+    runner.output = 'Hi';
+    expect(await provider.generateReply(sender: 'A', text: 'two'), 'Hi');
+  });
+  test('overlapping drafts serialize instead of busy failure', () async {
+    runner.output = 'Hi';
+    final results = await Future.wait([
+      provider.generateReply(sender: 'A', text: 'one'),
+      provider.generateReply(sender: 'B', text: 'two'),
+    ]);
+    expect(results, ['Hi', 'Hi']);
+    expect(runner.maxActive, 1);
   });
   test('malformed or thinking output stays manual', () async {
     runner.output = '<think>secret</think>';
