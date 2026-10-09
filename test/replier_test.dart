@@ -8,6 +8,23 @@ import 'package:replier/services/event_store.dart';
 import 'package:replier/state/controller.dart';
 
 void main() {
+  test('downloads and messaging service status are ignored', () {
+    expect(
+      ReplierController.isNonMessage('com.brave.browser', 'Download complete'),
+      true,
+    );
+    expect(
+      ReplierController.isNonMessage(
+        'com.whatsapp',
+        'Checking for new messages',
+      ),
+      true,
+    );
+    expect(
+      ReplierController.isNonMessage('com.whatsapp', 'Are you coming?'),
+      false,
+    );
+  });
   test('known watch apps and reaction-only notifications are not messages', () {
     expect(
       ReplierController.isNonMessage(

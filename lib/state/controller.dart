@@ -123,6 +123,13 @@ class ReplierController extends ChangeNotifier {
   }
 
   Future<void> start() async {
+    // Keep history/data, remove old service/download noise from the review queue.
+    for (final e in store.pendingReview()) {
+      if (isNonMessage(e.appPackage, e.text)) {
+        e.status = 'ignored';
+        await store.save(e);
+      }
+    }
     await store.recoverInterruptedDrafts();
     masterEnabled = await bridge.masterEnabled();
     await refreshPermissions();
@@ -151,6 +158,16 @@ class ReplierController extends ChangeNotifier {
         'com.ambi.lookout',
         'com.friday.assistant',
       }.contains(package) ||
+      {
+        'com.brave.browser',
+        'com.android.providers.downloads',
+        'com.android.chrome',
+      }.contains(package) ||
+      ({'com.whatsapp', 'com.whatsapp.w4b'}.contains(package) &&
+          RegExp(
+            r'^(Checking for new messages|You may have new messages|Backup in progress|Backing up messages)(?:[.\s].*)?$',
+            caseSensitive: false,
+          ).hasMatch(text.trim())) ||
       RegExp(
         r'^(?:[^:]+: )?(?:Reacted .+ to |You reacted |Reaction to )',
         caseSensitive: false,

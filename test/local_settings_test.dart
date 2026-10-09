@@ -30,6 +30,10 @@ void main() {
     await c.load();
     expect(c.mode, 'local');
     expect(c.localModel, 'qwen3_17b');
+    await c.saveLocal('qwen3_06b');
+    final d = ReplySettings();
+    await d.load();
+    expect(d.localModel, 'qwen3_06b');
     await c.off();
     expect(c.mode, 'off');
   });

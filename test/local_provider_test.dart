@@ -46,6 +46,12 @@ void main() {
   tearDown(() async {
     await dir.delete(recursive: true);
   });
+  test('lighter CPU option pinned size hash, old selections retained', () {
+    expect(LocalModelSpec.light.bytes, 484220320);
+    expect(LocalModelSpec.light.sha256.length, 64);
+    expect(LocalModelSpec.all, contains(LocalModelSpec.primary));
+    expect(LocalModelSpec.all, contains(LocalModelSpec.alternate));
+  });
   test('local JSON and same-chat context only', () async {
     expect(
       await provider.generateReply(

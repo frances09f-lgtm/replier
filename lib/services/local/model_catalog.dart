@@ -32,5 +32,14 @@ class LocalModelSpec {
     1282439584,
     '72c5c3cb38fa32d5256e2fe30d03e7a64c6c79e668ad84057e3bd66e250b24fb',
   );
-  static const all = [primary, alternate];
+  static const light = LocalModelSpec(
+    'qwen3_06b',
+    'Qwen3 0.6B · Q4_K_M · lighter CPU option',
+    'bartowski/Qwen_Qwen3-0.6B-GGUF',
+    '60b85c0e3d8fe0f6474f406922a26d12aca4550d',
+    'Qwen_Qwen3-0.6B-Q4_K_M.gguf',
+    484220320,
+    '9acfc1e001311f34b4252001b626f2e466d592a42065f66571bff3790d4e1b14',
+  );
+  static const all = [light, primary, alternate];
 }

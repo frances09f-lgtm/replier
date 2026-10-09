@@ -18,7 +18,8 @@ class ReplySettings {
         ? selected!
         : (enabled ? 'groq' : 'off');
     final local = await storage.read(key: 'local_model');
-    if (['qwen35_2b', 'qwen3_17b'].contains(local)) localModel = local!;
+    if (['qwen3_06b', 'qwen35_2b', 'qwen3_17b'].contains(local))
+      localModel = local!;
   }
 
   Future<void> save(String newKey, String newModel, bool consent) async {
@@ -34,7 +35,7 @@ class ReplySettings {
   }
 
   Future<void> saveLocal(String model) async {
-    if (!['qwen35_2b', 'qwen3_17b'].contains(model))
+    if (!['qwen3_06b', 'qwen35_2b', 'qwen3_17b'].contains(model))
       throw ArgumentError('Unknown local model');
     await storage.write(key: 'local_model', value: model);
     await storage.write(key: 'provider_mode', value: 'local');

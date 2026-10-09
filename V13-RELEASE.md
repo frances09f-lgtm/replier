@@ -1,0 +1,7 @@
+Replier v13 notification/local CPU fix:
+- Native admission requires MessagingStyle data, a free-form inline reply action or CATEGORY_MESSAGE, rather than any notification text. Download/service notifications don't enter draft inference.
+- Brave/Chrome/download manager and WhatsApp checking/backup service status blocked in Dart too. Previously queued matching noise is marked ignored, with history retained.
+- Keeps only model weights warm while foreground, creates/disposes a fresh chat for each draft; unloads on background/cancel. Smaller1024 context,64batch,96output tokens and short safety prompt. /no_think also in incoming user turn as required by Qwen3 usage.
+- Explicit484,220,320byte Qwen3 0.6B Q4_K_M option, pinned immutable revision/hash. Old installed models/provider selection unchanged, separate download/select required. No automatic cloud fallback, no automatic sending.
+- Timeout guard still stops reuse after a potentially hung engine; do not fake a draft or blindly keep spawning workers. Restart and selecting lighter model can be required.
+-54 Flutter tests including settings model persistence/filter/provider serialization/static engine lifecycle. Analyzer no errors/warnings (existing lint infos). Dark settings pixels inspected at412x915, no clipping. Native release build required. Real-device inference latency/success and background notification acceptance still unverified.

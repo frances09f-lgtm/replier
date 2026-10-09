@@ -11,7 +11,7 @@ class LocalModelSettings extends StatefulWidget {
 }
 
 class _LocalModelSettingsState extends State<LocalModelSettings> {
-  String selected = LocalModelSpec.primary.id;
+  String selected = LocalModelSpec.light.id;
   String status = '';
   int done = 0, total = 0;
   bool downloading = false, checking = false;
@@ -95,7 +95,7 @@ class _LocalModelSettingsState extends State<LocalModelSettings> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Current provider: ${widget.c.replySettings!.mode}. Local runs on this phone, uses no API key, and never falls back to cloud. Every reply still needs review.',
+              'Current provider: ${widget.c.replySettings!.mode}. For slower phones try the lighter 0.6B option (484 MB); it needs a separate download and selection. Existing models stay selected. Local runs on this phone, uses no API key, and never falls back to cloud. Every reply still needs review.',
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(

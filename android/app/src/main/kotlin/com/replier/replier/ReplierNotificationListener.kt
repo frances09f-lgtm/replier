@@ -65,6 +65,8 @@ class ReplierNotificationListener : NotificationListenerService() {
         fun replyInline(context: Context, key: String, text: String): String {
             if (!MasterPause.enabled(context)) return "paused"
             if (LegacyMigration.blocked(context)) return "old_access_active"
+            if (sbn.packageName in setOf("com.whatsapp", "com.whatsapp.w4b") &&
+                Regex("^(Checking for new messages|You may have new messages|Backup in progress|Backing up messages)(?:[.\\s].*)?$", RegexOption.IGNORE_CASE).matches(text.trim())) return
             if (text.isBlank()) return "error"
             val sbn = active(context, key) ?: return "gone"
             val actions = sbn.notification.actions ?: return "no_inline"
@@ -128,6 +130,12 @@ class ReplierNotificationListener : NotificationListenerService() {
             if(sbn.packageName in setOf("com.ambi.gold_paper_trading","com.ambi.lookout","com.friday.assistant"))return
             if(n.flags and Notification.FLAG_ONGOING_EVENT != 0 || n.flags and Notification.FLAG_GROUP_SUMMARY != 0)return
             val extras = n.extras ?: return
+            // Require actual messaging evidence, not any readable title/body.
+            val hasMessages = !extras.getParcelableArray(Notification.EXTRA_MESSAGES).isNullOrEmpty()
+            val hasReply = n.actions?.any { action ->
+                action.remoteInputs?.any { it.allowFreeFormInput } == true
+            } == true
+            if (!hasMessages && !hasReply && n.category != Notification.CATEGORY_MESSAGE) return
 
             var sender = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
             var messageAt = sbn.postTime
@@ -166,6 +174,8 @@ class ReplierNotificationListener : NotificationListenerService() {
                 }
             }
 
+            if (sbn.packageName in setOf("com.whatsapp", "com.whatsapp.w4b") &&
+                Regex("^(Checking for new messages|You may have new messages|Backup in progress|Backing up messages)(?:[.\\s].*)?$", RegexOption.IGNORE_CASE).matches(text.trim())) return
             if (text.isBlank()) return // nothing readable: skip safely
             if(Regex("^(?:[^:]+: )?(?:Reacted .+ to |You reacted |Reaction to )",RegexOption.IGNORE_CASE).containsMatchIn(text))return
             if (sender.isBlank()) sender = sbn.packageName
