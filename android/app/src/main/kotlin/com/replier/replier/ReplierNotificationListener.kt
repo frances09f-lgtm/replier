@@ -65,8 +65,6 @@ class ReplierNotificationListener : NotificationListenerService() {
         fun replyInline(context: Context, key: String, text: String): String {
             if (!MasterPause.enabled(context)) return "paused"
             if (LegacyMigration.blocked(context)) return "old_access_active"
-            if (sbn.packageName in setOf("com.whatsapp", "com.whatsapp.w4b") &&
-                Regex("^(Checking for new messages|You may have new messages|Backup in progress|Backing up messages)(?:[.\\s].*)?$", RegexOption.IGNORE_CASE).matches(text.trim())) return
             if (text.isBlank()) return "error"
             val sbn = active(context, key) ?: return "gone"
             val actions = sbn.notification.actions ?: return "no_inline"

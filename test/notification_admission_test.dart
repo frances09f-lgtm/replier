@@ -19,6 +19,12 @@ void main() {
     );
     expect(source, contains('it.allowFreeFormInput'));
     expect(source, contains('Checking for new messages'));
+    expect(RegExp('Checking for new messages').allMatches(source).length, 1);
+    final send = source.substring(
+      source.indexOf('fun replyInline'),
+      source.indexOf('fun openChatAndQueueSend'),
+    );
+    expect(send, isNot(contains('Checking for new messages')));
   });
   test('local engine keeps weights only, fresh chat each request, smaller CPU budget', () {
     final source = File('lib/services/local/local_provider.dart')
