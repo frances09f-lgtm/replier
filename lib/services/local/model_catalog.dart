@@ -1,4 +1,5 @@
-/// Pinned community quantizations of Apache-2.0 Qwen weights.
+/// Pinned community quantizations of Qwen and Meta Llama weights.
+/// Llama3.2 uses Meta community license; Qwen uses Apache-2.0.
 /// Model files stay outside the APK; SHA-256 is verified before use.
 class LocalModelSpec {
   const LocalModelSpec(
@@ -41,5 +42,14 @@ class LocalModelSpec {
     484220320,
     '9acfc1e001311f34b4252001b626f2e466d592a42065f66571bff3790d4e1b14',
   );
-  static const all = [light, primary, alternate];
+  static const llama = LocalModelSpec(
+    'llama32_1b',
+    'Llama 3.2 1B Instruct · Q4_K_M',
+    'bartowski/Llama-3.2-1B-Instruct-GGUF',
+    '067b946cf014b7c697f3654f621d577a3e3afd1c',
+    'Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+    807694464,
+    '6f85a640a97cf2bf5b8e764087b1e83da0fdb51d7c9fab7d0fece9385611df83',
+  );
+  static const all = [llama, light, primary, alternate];
 }

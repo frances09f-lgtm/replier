@@ -11,7 +11,7 @@ class LocalModelSettings extends StatefulWidget {
 }
 
 class _LocalModelSettingsState extends State<LocalModelSettings> {
-  String selected = LocalModelSpec.light.id;
+  String selected = LocalModelSpec.llama.id;
   String status = '';
   int done = 0, total = 0;
   bool downloading = false, checking = false;
@@ -95,7 +95,7 @@ class _LocalModelSettingsState extends State<LocalModelSettings> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Current provider: ${widget.c.replySettings!.mode}. For slower phones try the lighter 0.6B option (484 MB); it needs a separate download and selection. Existing models stay selected. Local runs on this phone, uses no API key, and never falls back to cloud. Every reply still needs review.',
+              'Current provider: ${widget.c.replySettings!.mode}. Selected local model: Llama 3.2 1B (808 MB). Download and verify it, then tap Use local model. Existing model files stay on this phone. Meta Llama 3.2 community license applies. Local runs on this phone, uses no API key, and never falls back to cloud. Every reply still needs review.',
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(

@@ -66,13 +66,21 @@ class LlamaRunner implements LocalRunner {
       for (final m in messages) {
         switch (m['role']) {
           case 'system':
-            chat.addSystem('${m['content']} /no_think');
+            chat.addSystem(
+              path.contains('llama32')
+                  ? m['content']!
+                  : '${m['content']} /no_think',
+            );
             break;
           case 'assistant':
             chat.addAssistant(m['content']!);
             break;
           default:
-            chat.addUser('${m['content']} /no_think');
+            chat.addUser(
+              path.contains('llama32')
+                  ? m['content']!
+                  : '${m['content']} /no_think',
+            );
         }
       }
       final output = StringBuffer();

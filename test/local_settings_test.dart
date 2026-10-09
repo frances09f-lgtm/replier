@@ -13,6 +13,23 @@ import 'package:replier/state/controller.dart';
 import 'package:replier/ui/local_settings.dart';
 
 void main() {
+  test(
+    'Llama owner migration selects once, keeps mode and later choices',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'provider_mode': 'local',
+        'local_model': 'qwen35_2b',
+      });
+      final a = ReplySettings();
+      await a.load();
+      expect(a.localModel, 'llama32_1b');
+      expect(a.mode, 'local');
+      await a.saveLocal('qwen3_06b');
+      final b = ReplySettings();
+      await b.load();
+      expect(b.localModel, 'qwen3_06b');
+    },
+  );
   test('fresh manual default and v8 consent migration', () async {
     FlutterSecureStorage.setMockInitialValues({});
     final a = ReplySettings();
@@ -88,7 +105,7 @@ void main() {
     });
     await t.tap(find.text('Download / Resume'));
     await t.pumpAndSettle();
-    expect(find.textContaining('1.40 GB'), findsWidgets);
+    expect(find.textContaining('0.81 GB'), findsWidgets);
     expect(find.text('Download local test model?'), findsOneWidget);
     await t.tap(find.text('Cancel'));
     await t.pumpAndSettle();

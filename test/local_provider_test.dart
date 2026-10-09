@@ -31,6 +31,17 @@ class FakeRunner implements LocalRunner {
 }
 
 void main() {
+  test('Llama GGUF immutable revision bytes hash retained', () {
+    expect(LocalModelSpec.llama.bytes, 807694464);
+    expect(
+      LocalModelSpec.llama.revision,
+      '067b946cf014b7c697f3654f621d577a3e3afd1c',
+    );
+    expect(
+      LocalModelSpec.llama.sha256,
+      '6f85a640a97cf2bf5b8e764087b1e83da0fdb51d7c9fab7d0fece9385611df83',
+    );
+  });
   const spec = LocalModelSpec('test', 'test', 'r', 'r', 'f', 4, 'h');
   late Directory dir;
   late File file;

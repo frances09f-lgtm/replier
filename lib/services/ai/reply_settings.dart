@@ -6,7 +6,7 @@ class ReplySettings {
   String model = 'qwen/qwen3.8-27b';
   bool enabled = false;
   String mode = 'off';
-  String localModel = 'qwen35_2b';
+  String localModel = 'llama32_1b';
   static const models = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b'];
   Future<void> load() async {
     key = await storage.read(key: 'groq_key') ?? '';
@@ -18,8 +18,14 @@ class ReplySettings {
         ? selected!
         : (enabled ? 'groq' : 'off');
     final local = await storage.read(key: 'local_model');
-    if (['qwen3_06b', 'qwen35_2b', 'qwen3_17b'].contains(local))
+    if (['llama32_1b', 'qwen3_06b', 'qwen35_2b', 'qwen3_17b'].contains(local))
       localModel = local!;
+    // v14 owner-requested default change, once only. Later choices persist.
+    if (await storage.read(key: 'llama32_selection_migrated') != 'true') {
+      localModel = 'llama32_1b';
+      await storage.write(key: 'local_model', value: localModel);
+      await storage.write(key: 'llama32_selection_migrated', value: 'true');
+    }
   }
 
   Future<void> save(String newKey, String newModel, bool consent) async {
@@ -35,7 +41,7 @@ class ReplySettings {
   }
 
   Future<void> saveLocal(String model) async {
-    if (!['qwen3_06b', 'qwen35_2b', 'qwen3_17b'].contains(model))
+    if (!['llama32_1b', 'qwen3_06b', 'qwen35_2b', 'qwen3_17b'].contains(model))
       throw ArgumentError('Unknown local model');
     await storage.write(key: 'local_model', value: model);
     await storage.write(key: 'provider_mode', value: 'local');

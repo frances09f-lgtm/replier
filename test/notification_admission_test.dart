@@ -34,7 +34,7 @@ void main() {
     expect(source, contains('await chat?.dispose()'));
     expect(source, contains('nCtx: 1024'));
     expect(source, contains('maxTokens: 96'));
-    expect(source, contains("chat.addUser('\${m['content']} /no_think')"));
+    expect(source, contains("'\${m['content']} /no_think'"));
     expect(source, contains('if (result == null)'));
   });
 }
