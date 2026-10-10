@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../models/message_event.dart';
 import '../services/ai/reply_settings.dart';
 import '../state/controller.dart';
@@ -329,12 +328,12 @@ class _ReplyCard extends StatelessWidget {
               e.status == 'queued'
                   ? 'Queued for drafting'
                   : e.status == 'generating'
-                  ? 'Drafting…'
-                  : e.generatedReply.isEmpty
-                  ? e.status == 'new'
-                        ? 'Queued for drafting'
-                        : 'No draft yet'
-                  : e.generatedReply,
+                      ? 'Drafting…'
+                      : e.generatedReply.isEmpty
+                          ? e.status == 'new'
+                              ? 'Queued for drafting'
+                              : 'No draft yet'
+                          : e.generatedReply,
               style: const TextStyle(fontSize: 14),
             ),
             if (e.generationError.isNotEmpty)
@@ -365,16 +364,16 @@ class _ReplyCard extends StatelessWidget {
                   label: const Text('Approve'),
                   onPressed:
                       !c.masterEnabled ||
-                          e.status != 'generated' ||
-                          e.generatedReply.isEmpty
-                      ? null
-                      : () async {
-                          final note = await c.approve(e);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context)
-                                .showSnackBar(SnackBar(content: Text(note)));
-                          }
-                        },
+                              e.status != 'generated' ||
+                              e.generatedReply.isEmpty
+                          ? null
+                          : () async {
+                              final note = await c.approve(e);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context)
+                                    .showSnackBar(SnackBar(content: Text(note)));
+                              }
+                            },
                 ),
                 const SizedBox(width: 8),
                 OutlinedButton(
@@ -465,6 +464,19 @@ class _SettingsState extends State<_Settings> {
           ),
         ),
         const Divider(),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Reply as me'),
+          subtitle: const Text(
+            'Draft replies in your first-person voice instead of as a third-party assistant.',
+          ),
+          value: c.replyAsUser,
+          onChanged: (val) async {
+            await c.setReplyAsUser(val);
+            if (mounted) setState(() {});
+          },
+        ),
+        const Divider(),
         ListTile(title: const Text('Reply brain'), subtitle: Text(c.brainName)),
         if (c.replySettings != null) _GroqSettings(c: c),
         if (c.replySettings != null) LocalModelSettings(c: c),
@@ -502,6 +514,7 @@ String _fmtTime(DateTime d) {
 class _LegacyCard extends StatelessWidget {
   final ReplierController c;
   const _LegacyCard({required this.c});
+
   @override
   Widget build(BuildContext context) => Card(
     margin: const EdgeInsets.all(12),
@@ -548,6 +561,7 @@ class _LegacyCard extends StatelessWidget {
 class _GroqSettings extends StatefulWidget {
   const _GroqSettings({required this.c});
   final ReplierController c;
+
   @override
   State<_GroqSettings> createState() => _GroqSettingsState();
 }
@@ -557,6 +571,7 @@ class _GroqSettingsState extends State<_GroqSettings> {
   late String model;
   late bool enabled;
   bool saving = false;
+
   @override
   void initState() {
     super.initState();
