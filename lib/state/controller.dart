@@ -1,13 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:path_provider/path_provider.dart';
-
-import '../services/local/model_catalog.dart';
-import '../services/local/model_download.dart';
-import '../services/local/local_provider.dart';
-
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../models/message_event.dart';
 import '../services/ai/ai_provider.dart';
@@ -15,6 +10,9 @@ import '../services/ai/groq_provider.dart';
 import '../services/ai/reply_settings.dart';
 import '../services/bridge.dart';
 import '../services/event_store.dart';
+import '../services/local/local_provider.dart';
+import '../services/local/model_catalog.dart';
+import '../services/local/model_download.dart';
 import '../services/usage_reporter.dart';
 
 /// Wires notification events -> store -> reply draft -> user review.
@@ -31,6 +29,9 @@ class ReplierController extends ChangeNotifier {
   final Duration draftTimeout;
   Future<void> _draftQueue = Future.value();
   final Set<String> _queued = {};
+  final Map<String, DateTime> _lastReplyBySender = {};
+  static const Duration senderCooldown = Duration(minutes: 1);
+
   final EventStore store;
   final ReplierBridge bridge;
   AiProvider provider;
@@ -40,8 +41,8 @@ class ReplierController extends ChangeNotifier {
   String get brainName => replySettings == null
       ? provider.name
       : cloudEnabled
-      ? provider.name
-      : "AI off - write replies manually";
+          ? provider.name
+          : "AI off - write replies manually";
 
   StreamSubscription? _sub;
   bool masterEnabled = true;
@@ -123,9 +124,9 @@ class ReplierController extends ChangeNotifier {
   }
 
   Future<void> start() async {
-    // Keep history/data, remove old service/download noise from the review queue.
+    // Keep history/data, remove old service/download noise and bots from the review queue.
     for (final e in store.pendingReview()) {
-      if (isNonMessage(e.appPackage, e.text)) {
+      if (isNonMessage(e.appPackage, e.text, e.sender)) {
         e.status = 'ignored';
         await store.save(e);
       }
@@ -152,36 +153,57 @@ class ReplierController extends ChangeNotifier {
     notifyListeners();
   }
 
-  static bool isNonMessage(String package, String text) =>
-      {
-        'com.ambi.gold_paper_trading',
-        'com.ambi.lookout',
-        'com.friday.assistant',
-      }.contains(package) ||
-      {
-        'com.brave.browser',
-        'com.android.providers.downloads',
-        'com.android.chrome',
-      }.contains(package) ||
-      ({'com.whatsapp', 'com.whatsapp.w4b'}.contains(package) &&
-          RegExp(
-            r'^(Checking for new messages|You may have new messages|Backup in progress|Backing up messages)(?:[.\s].*)?$',
-            caseSensitive: false,
-          ).hasMatch(text.trim())) ||
-      RegExp(
-        r'^(?:[^:]+: )?(?:Reacted .+ to |You reacted |Reaction to )',
-        caseSensitive: false,
-      ).hasMatch(text);
+  static bool isNonMessage(String package, String text, [String sender = '']) {
+    final s = sender.trim().toLowerCase();
+    if (s.contains('meta ai') ||
+        s.contains('pally') ||
+        s == 'google' ||
+        s == 'whatsapp' ||
+        s.contains('assistant') ||
+        s.contains('bot')) {
+      return true;
+    }
+    return {
+          'com.ambi.gold_paper_trading',
+          'com.ambi.lookout',
+          'com.friday.assistant',
+        }.contains(package) ||
+        {
+          'com.brave.browser',
+          'com.android.providers.downloads',
+          'com.android.chrome',
+        }.contains(package) ||
+        ({'com.whatsapp', 'com.whatsapp.w4b'}.contains(package) &&
+            RegExp(
+              r'^(Checking for new messages|You may have new messages|Backup in progress|Backing up messages)(?:[.\s].*)?$',
+              caseSensitive: false,
+            ).hasMatch(text.trim())) ||
+        RegExp(
+          r'^(?:[^:]+: )?(?:Reacted .+ to |You reacted |Reaction to )',
+          caseSensitive: false,
+        ).hasMatch(text);
+  }
+
   Future<void> _onEvent(Map<String, dynamic> raw) async {
     if (legacyBlocked || !masterEnabled) return;
     final text = raw['text']?.toString() ?? '';
-    if (isNonMessage(raw['package']?.toString() ?? '', text)) return;
+    final sender = raw['sender']?.toString() ?? 'Unknown';
+    final package = raw['package']?.toString() ?? '';
+    if (isNonMessage(package, text, sender)) return;
     if (text.trim().isEmpty) return; // missing notification text: skip safely
+
+    final senderKey = sender.trim().toLowerCase();
+    final lastReply = _lastReplyBySender[senderKey];
+    if (lastReply != null &&
+        DateTime.now().difference(lastReply) < senderCooldown) {
+      return; // Cooldown active: avoid reply loops
+    }
+
     final e = store.addIfNew(
       notifKey: raw['notifKey']?.toString() ?? '',
-      appPackage: raw['package']?.toString() ?? '',
-      appLabel: raw['appLabel']?.toString() ?? raw['package']?.toString() ?? '',
-      sender: raw['sender']?.toString() ?? 'Unknown',
+      appPackage: package,
+      appLabel: raw['appLabel']?.toString() ?? package,
+      sender: sender,
       text: text,
       at: DateTime.fromMillisecondsSinceEpoch(
         (raw['at'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
@@ -288,6 +310,29 @@ class ReplierController extends ChangeNotifier {
       if (e.status == 'generating' &&
           masterEnabled &&
           epoch == _generationEpoch) {
+        // Fallback: if local model or generation failed, try deterministic LocalRuleProvider
+        if (provider is LocalModelProvider) {
+          try {
+            const fallbackProvider = LocalRuleProvider();
+            final fallback = await fallbackProvider.generateReply(
+              sender: e.sender,
+              text: e.text,
+              history: store.replyHistory(e),
+            );
+            if (fallback.trim().isNotEmpty) {
+              e.generatedReply = fallback.trim();
+              e.status = 'generated';
+              e.generationError = '';
+              UsageReporter.report('draft_created', {'source': 'rule_fallback'});
+              await store.save(e);
+              notifyListeners();
+              return;
+            }
+          } catch (_) {
+            // Rule fallback failed, proceed with normal error reporting
+          }
+        }
+
         e.status = 'generation_failed';
         e.generatedReply = '';
         if (error is TimeoutException)
@@ -299,8 +344,8 @@ class ReplierController extends ChangeNotifier {
         e.generationError = error is TimeoutException
             ? 'Draft timed out while loading or generating. Nothing sent. Check the selected AI provider in Settings, then Retry or Edit.'
             : error is ReplyGenerationException
-            ? error.message
-            : 'Could not generate a draft. Tap Retry or Edit.';
+                ? error.message
+                : 'Could not generate a draft. Tap Retry or Edit.';
       }
     }
     if (e.status == 'generating') {
@@ -392,10 +437,13 @@ class ReplierController extends ChangeNotifier {
       result = await bridge.openAndSend(e.notifKey, text);
       if (result == 'opened') {
         e.status = 'opened_unverified';
-        lastSendNote = 'Chat opened. Sending is not confirmed. Check the chat before sending again.';
+        _lastReplyBySender[e.sender.trim().toLowerCase()] = DateTime.now();
+        lastSendNote =
+            'Chat opened. Sending is not confirmed. Check the chat before sending again.';
       } else if (result == 'no_accessibility') {
         e.status = 'send_failed';
-        lastSendNote = 'Accessibility access is off - enable it in Settings, or the reply could not be sent.';
+        lastSendNote =
+            'Accessibility access is off - enable it in Settings, or the reply could not be sent.';
       } else {
         e.status = 'send_failed';
         lastSendNote = 'Could not send: the notification is gone.';
@@ -405,7 +453,9 @@ class ReplierController extends ChangeNotifier {
       lastSendNote = 'Replier is paused. Nothing sent.';
     } else if (result == 'submitted' || result == 'sent') {
       e.status = 'submitted';
-      lastSendNote = 'Reply submitted to the app. Delivery is not confirmed.';
+      _lastReplyBySender[e.sender.trim().toLowerCase()] = DateTime.now();
+      lastSendNote =
+          'Reply submitted to the app. Delivery is not confirmed.';
     } else {
       e.status = 'send_failed';
       lastSendNote = 'Could not send the reply.';
