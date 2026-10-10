@@ -25,6 +25,24 @@ void main() {
       false,
     );
   });
+  test('ai bots and assistants are filtered out', () {
+    expect(
+      ReplierController.isNonMessage(
+        'com.whatsapp',
+        "You good? You've said hi like 4 times now",
+        'Meta AI',
+      ),
+      true,
+    );
+    expect(
+      ReplierController.isNonMessage(
+        'com.google.android.apps.messaging',
+        'update relayed',
+        'Pally',
+      ),
+      true,
+    );
+  });
   test('known watch apps and reaction-only notifications are not messages', () {
     expect(
       ReplierController.isNonMessage(
