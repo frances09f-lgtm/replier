@@ -15,6 +15,7 @@ class GroqProvider implements AiProvider {
   GroqProvider({
     required this.key,
     required this.model,
+    this.replyAsUser = true,
     HttpClient? client,
     Uri? endpoint,
   }) : client = client ?? HttpClient(),
@@ -25,18 +26,20 @@ class GroqProvider implements AiProvider {
   final String model;
   final HttpClient client;
   final Uri endpoint;
+  final bool replyAsUser;
   @override
   String get name => 'Groq · $model';
 
   static List<Map<String, String>> messages(
     String sender,
     String text,
-    List<Map<String, String>> history,
-  ) => [
+    List<Map<String, String>> history, {
+    bool replyAsUser = true,
+  }) => [
     {
       'role': 'system',
       'content':
-          'Draft a short natural reply for the account owner to review. '
+          'Draft a short natural reply ${replyAsUser ? "in first person as the account owner (reply as me) " : ""}for the account owner to review. '
           'Answer the meaning of the latest incoming message, not a generic acknowledgment. '
           'Match its language AND script, including Marathi, Roman Marathi, Hindi and Hinglish. '
           'Usually one or two sentences. No headings, quotes, markdown or reasoning. '
@@ -71,7 +74,7 @@ class GroqProvider implements AiProvider {
       request.write(
         jsonEncode({
           'model': model,
-          'messages': messages(sender, text, history),
+          'messages': messages(sender, text, history, replyAsUser: replyAsUser),
           'temperature': 0.3,
           'max_completion_tokens': 512,
           'response_format': {'type': 'json_object'},
