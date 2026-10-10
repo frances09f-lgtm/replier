@@ -3,6 +3,10 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,3 +38,9 @@ jobs:
         with:
           name: replier-release-apk
           path: "build/app/outputs/flutter-apk/Replier.apk"
+      - name: Upload to Release v15
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload v15 "build/app/outputs/flutter-apk/Replier.apk" --clobber
