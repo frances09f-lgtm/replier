@@ -7,6 +7,7 @@ class ReplySettings {
   bool enabled = false;
   String mode = 'off';
   String localModel = 'llama32_1b';
+  bool replyAsUser = true;
   static const models = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b'];
   Future<void> load() async {
     key = await storage.read(key: 'groq_key') ?? '';
@@ -20,12 +21,19 @@ class ReplySettings {
     final local = await storage.read(key: 'local_model');
     if (['llama32_1b', 'qwen3_06b', 'qwen35_2b', 'qwen3_17b'].contains(local))
       localModel = local!;
+    final asUserVal = await storage.read(key: 'reply_as_user');
+    replyAsUser = asUserVal == null ? true : asUserVal == 'true';
     // v14 owner-requested default change, once only. Later choices persist.
     if (await storage.read(key: 'llama32_selection_migrated') != 'true') {
       localModel = 'llama32_1b';
       await storage.write(key: 'local_model', value: localModel);
       await storage.write(key: 'llama32_selection_migrated', value: 'true');
     }
+  }
+
+  Future<void> setReplyAsUser(bool value) async {
+    replyAsUser = value;
+    await storage.write(key: 'reply_as_user', value: value.toString());
   }
 
   Future<void> save(String newKey, String newModel, bool consent) async {
