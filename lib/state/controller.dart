@@ -38,6 +38,31 @@ class ReplierController extends ChangeNotifier {
   final ReplySettings? replySettings;
   bool get cloudEnabled =>
       replySettings == null ? true : replySettings!.mode != 'off';
+  bool get replyAsUser => replySettings?.replyAsUser ?? true;
+
+  Future<void> setReplyAsUser(bool value) async {
+    await replySettings?.setReplyAsUser(value);
+    if (provider is GroqProvider) {
+      final old = provider as GroqProvider;
+      provider = GroqProvider(
+        key: old.key,
+        model: old.model,
+        client: old.client,
+        endpoint: old.endpoint,
+        replyAsUser: value,
+      );
+    } else if (provider is LocalModelProvider) {
+      final old = provider as LocalModelProvider;
+      provider = LocalModelProvider(
+        model: old.model,
+        file: old.file,
+        runner: old.runner,
+        replyAsUser: value,
+      );
+    }
+    notifyListeners();
+  }
+
   String get brainName => replySettings == null
       ? provider.name
       : cloudEnabled
@@ -71,6 +96,7 @@ class ReplierController extends ChangeNotifier {
       provider = LocalModelProvider(
         model: spec,
         file: downloads!.modelFile(spec),
+        replyAsUser: replyAsUser,
       );
     }
   }
@@ -85,6 +111,7 @@ class ReplierController extends ChangeNotifier {
     provider = LocalModelProvider(
       model: spec,
       file: downloads!.modelFile(spec),
+      replyAsUser: replyAsUser,
     );
     notifyListeners();
   }
@@ -175,7 +202,7 @@ class ReplierController extends ChangeNotifier {
         }.contains(package) ||
         ({'com.whatsapp', 'com.whatsapp.w4b'}.contains(package) &&
             RegExp(
-              r'^(Checking for new messages|You may have new messages|Backup in progress|Backing up messages)(?:[.\s].*)?$',
+              r'^(?:Checking for new messages|You may have new messages|Backup in progress|Backing up messages)(?:[.\s].*)?$',
               caseSensitive: false,
             ).hasMatch(text.trim())) ||
         RegExp(
@@ -218,7 +245,11 @@ class ReplierController extends ChangeNotifier {
     await replySettings!.save(key, model, enabled);
     if (provider is GroqProvider)
       (provider as GroqProvider).client.close(force: true);
-    provider = GroqProvider(key: key.trim(), model: model);
+    provider = GroqProvider(
+      key: key.trim(),
+      model: model,
+      replyAsUser: replyAsUser,
+    );
     notifyListeners();
   }
 
@@ -376,6 +407,7 @@ class ReplierController extends ChangeNotifier {
           provider = GroqProvider(
             key: replySettings?.key ?? '',
             model: replySettings?.model ?? ReplySettings.models.first,
+            replyAsUser: replyAsUser,
           );
         }
         for (final e in history.where((e) => e.status == 'generating')) {
