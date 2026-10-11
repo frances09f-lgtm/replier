@@ -86,6 +86,7 @@ class PhiLocalService private constructor(private val context: Context) {
 
     private val loadedModels = ConcurrentHashMap<String, LlamaModel>()
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val downloadExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val downloadProgressMap = ConcurrentHashMap<String, Int>()
     private val downloadingMap = ConcurrentHashMap<String, Boolean>()
 
@@ -127,7 +128,7 @@ class PhiLocalService private constructor(private val context: Context) {
         downloadingMap[modelId] = true
         downloadProgressMap[modelId] = 0
 
-        executor.execute {
+        downloadExecutor.execute {
             var conn: HttpURLConnection? = null
             try {
                 val target = getModelFile(config)

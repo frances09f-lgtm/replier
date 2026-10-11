@@ -1553,8 +1553,8 @@ class _ModelRadioTileState extends State<_ModelRadioTile>
     if (mounted) setState(() => _checking = true);
     try {
       const channel = MethodChannel('com.replier.replier/native');
-      final result = await channel
-          .invokeMethod<Map>('getPhiStatus', {'modelId': widget.modelId});
+      final result = await channel.invokeMethod<Map>('getPhiStatus',
+          {'modelId': widget.modelId}).timeout(const Duration(seconds: 10));
       if (result != null && mounted) {
         final available = result['available'] == true;
         if (widget.modelId != null) _statusCache[widget.modelId!] = available;
@@ -1652,8 +1652,15 @@ class _ModelRadioTileState extends State<_ModelRadioTile>
                 : isLocalModel && !isAvailable
                     ? '${widget.subtitle} (tap download)'
                     : widget.subtitle),
-            trailing: trailing,
-            onTap: isLocalModel && !isAvailable ? null : () => widget.onTap(),
+            trailing: isLocalModel && !isAvailable && !_downloading
+                ? IconButton(
+                    icon: const Icon(Icons.download, color: Colors.orange),
+                    onPressed: _download,
+                    tooltip: 'Download ${widget.title}')
+                : trailing,
+            onTap: isLocalModel && !isAvailable
+                ? (_downloading ? null : _download)
+                : () => widget.onTap(),
           ),
           // Animate bottom-area height changes (download button <->
           // progress <-> status) instead of instant jumps that shift the
