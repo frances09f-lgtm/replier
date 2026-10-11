@@ -3,7 +3,7 @@ import '../core/constants.dart';
 
 class ProviderSecrets {
   static const _channel = MethodChannel(AppConstants.nativeChannel);
-  static String groq = '', gemini = '';
+  static String groq = '', gemini = '', cloudflare = '';
   static Future<void> load() async {
     try {
       final values =
@@ -11,9 +11,11 @@ class ProviderSecrets {
               {};
       groq = values['groq'] as String? ?? '';
       gemini = values['gemini'] as String? ?? '';
+      cloudflare = values['cloudflare'] as String? ?? '';
     } on MissingPluginException {
       groq = '';
       gemini = '';
+      cloudflare = '';
     }
   }
 
@@ -22,8 +24,10 @@ class ProviderSecrets {
         'saveProviderKey', {'provider': provider, 'value': value});
     if (provider == 'groq') {
       groq = value;
-    } else {
+    } else if (provider == 'gemini') {
       gemini = value;
+    } else if (provider == 'cloudflare') {
+      cloudflare = value;
     }
   }
 }

@@ -119,6 +119,13 @@ class AppSettings extends HiveObject {
   @HiveField(45)
   bool fallbackToLocalModel;
 
+  @HiveField(46)
+  String cloudflareApiKey;
+  @HiveField(47)
+  String cloudflareAccountId;
+  @HiveField(48)
+  String cloudflareModel;
+
   AppSettings({
     this.masterEnabled = false,
     this.whatsappEnabled = true,
@@ -147,6 +154,9 @@ class AppSettings extends HiveObject {
     this.gemmaLocalServerUrl = '',
     this.gemmaLocalModel = 'llama_3_2_1b',
     this.selectedLocalModel = 'llama_3_2_1b',
+    this.cloudflareApiKey = '',
+    this.cloudflareAccountId = '',
+    this.cloudflareModel = '@cf/qwen/qwen3-30b-a3b-fp8',
     this.groqApiKey = '',
     this.groqModel = 'openai/gpt-oss-20b',
     this.geminiApiKey = '',
@@ -262,6 +272,9 @@ class AppSettings extends HiveObject {
       'gemmaLocalServerUrl': gemmaLocalServerUrl,
       'gemmaLocalModel': gemmaLocalModel,
       'selectedLocalModel': selectedLocalModel,
+      'cloudflareApiKey': cloudflareApiKey,
+      'cloudflareAccountId': cloudflareAccountId,
+      'cloudflareModel': cloudflareModel,
       'groqApiKey': groqApiKey,
       'groqModel': groqModel,
       'geminiApiKey': geminiApiKey,
@@ -310,6 +323,10 @@ class AppSettings extends HiveObject {
       gemmaLocalModel: (json['gemmaLocalModel'] as String?) ?? 'llama_3_2_1b',
       selectedLocalModel:
           (json['selectedLocalModel'] as String?) ?? 'llama_3_2_1b',
+      cloudflareApiKey: '',
+      cloudflareAccountId: (json['cloudflareAccountId'] as String?) ?? '',
+      cloudflareModel:
+          (json['cloudflareModel'] as String?) ?? '@cf/qwen/qwen3-30b-a3b-fp8',
       groqApiKey: (json['groqApiKey'] as String?) ?? '',
       groqModel: CloudAiModel.normalizeGroqModel(json['groqModel'] as String?),
       geminiApiKey: (json['geminiApiKey'] as String?) ?? '',
@@ -353,6 +370,9 @@ class AppSettings extends HiveObject {
     String? gemmaLocalServerUrl,
     String? gemmaLocalModel,
     String? selectedLocalModel,
+    String? cloudflareApiKey,
+    String? cloudflareAccountId,
+    String? cloudflareModel,
     String? groqApiKey,
     String? groqModel,
     String? geminiApiKey,
@@ -393,6 +413,9 @@ class AppSettings extends HiveObject {
       gemmaLocalServerUrl: gemmaLocalServerUrl ?? this.gemmaLocalServerUrl,
       gemmaLocalModel: gemmaLocalModel ?? this.gemmaLocalModel,
       selectedLocalModel: selectedLocalModel ?? this.selectedLocalModel,
+      cloudflareApiKey: cloudflareApiKey ?? this.cloudflareApiKey,
+      cloudflareAccountId: cloudflareAccountId ?? this.cloudflareAccountId,
+      cloudflareModel: cloudflareModel ?? this.cloudflareModel,
       groqApiKey: groqApiKey ?? this.groqApiKey,
       groqModel: groqModel ?? this.groqModel,
       geminiApiKey: geminiApiKey ?? this.geminiApiKey,

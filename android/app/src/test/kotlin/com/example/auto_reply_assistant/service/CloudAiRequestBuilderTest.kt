@@ -1,10 +1,18 @@
 package com.replier.replier.service
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CloudAiRequestBuilderTest {
+    @Test
+    fun cloudflareQwenGetsNoThinkWithoutGroqOnlyParameters() {
+      val payload=CloudAiRequestBuilder.buildOpenAiCompatiblePayload(model="@cf/qwen/qwen3-30b-a3b-fp8",systemPrompt="reply short",incomingMessage="hi",senderName="Sam",provider="cloudflare_api")
+      assertTrue(payload.getJSONArray("messages").getJSONObject(1).getString("content").endsWith("/no_think"))
+      assertFalse(payload.has("reasoning_format"))
+    }
+
 
     @Test
     fun openAiPayload_includesSystemPromptAndIncomingMessage() {

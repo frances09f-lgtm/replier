@@ -434,6 +434,14 @@ class RuleEngine(private val context: Context) {
         return prefs.getString("ai_model_type", "phi_local") ?: "phi_local"
     }
 
+    fun getCloudflareApiKey(): String = ProviderSecrets.read(context,"cloudflare")
+    private fun cloudflareSetting(name:String,fallback:String):String {
+      val json=readSettingsJson()
+      return try {JSONObject(json?:"{}").optString(name,fallback)}catch(_:Exception){fallback}
+    }
+    fun getCloudflareAccountId():String=cloudflareSetting("cloudflareAccountId","")
+    fun getCloudflareModel():String=cloudflareSetting("cloudflareModel","@cf/qwen/qwen3-30b-a3b-fp8")
+
     fun getGroqApiKey(): String = ProviderSecrets.read(context,"groq")
 
     fun getGroqModel(): String {
@@ -846,7 +854,7 @@ class RuleEngine(private val context: Context) {
     fun saveSettings(json: String) {
         try {
             val obj = JSONObject(json)
-            obj.remove("groqApiKey");obj.remove("geminiApiKey")
+            obj.remove("groqApiKey");obj.remove("geminiApiKey");obj.remove("cloudflareApiKey")
             val sanitized=obj.toString()
             File(filesDir(), SETTINGS_FILE).writeText(sanitized)
             // Mirror full JSON for background reads when files are unavailable

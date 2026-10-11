@@ -31,7 +31,9 @@ class SettingsRepository {
     }
     final settings = box.get('settings')!;
     return _migrateCloudModelsIfNeeded(settings).copyWith(
-        groqApiKey: ProviderSecrets.groq, geminiApiKey: ProviderSecrets.gemini);
+        groqApiKey: ProviderSecrets.groq,
+        geminiApiKey: ProviderSecrets.gemini,
+        cloudflareApiKey: ProviderSecrets.cloudflare);
   }
 
   AppSettings _migrateCloudModelsIfNeeded(AppSettings settings) {
@@ -56,7 +58,9 @@ class SettingsRepository {
       lastUpdated: DateTime.now(),
     );
     await box.put(
-        'settings', updatedSettings.copyWith(groqApiKey: '', geminiApiKey: ''));
+        'settings',
+        updatedSettings.copyWith(
+            groqApiKey: '', geminiApiKey: '', cloudflareApiKey: ''));
   }
 
   /// Toggle master enabled
@@ -176,6 +180,17 @@ class SettingsRepository {
       groqModel: model,
     );
     await updateSettings(updatedSettings);
+  }
+
+  Future<void> updateCloudflareConfig(
+      String key, String account, String model) async {
+    if (!RegExp(r'^[a-fA-F0-9]{32}$').hasMatch(account)) {
+      throw const FormatException(
+          'Enter the 32-character Cloudflare account ID');
+    }
+    await ProviderSecrets.write('cloudflare', key);
+    await updateSettings(getSettings()
+        .copyWith(cloudflareAccountId: account, cloudflareModel: model));
   }
 
   /// Update Gemini API config

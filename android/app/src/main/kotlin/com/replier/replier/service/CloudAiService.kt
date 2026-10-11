@@ -32,6 +32,7 @@ class CloudAiService private constructor(private val context: Context) {
         engineType: String,
         apiKey: String,
         model: String,
+        accountId: String = "",
         senderName: String,
         incomingMessages: List<String>,
         systemPrompt: String,
@@ -70,6 +71,15 @@ class CloudAiService private constructor(private val context: Context) {
                         history = conversationHistory,
                         provider = "groq_api",
                     )
+                    "cloudflare_api" -> {
+                        if(!Regex("^[a-fA-F0-9]{32}$").matches(accountId))
+                            CloudAiResult(null,PhiLocalService.AiUsage(error="Cloudflare account ID missing or invalid"))
+                        else callOpenAiCompatible(
+                            endpoint="https://api.cloudflare.com/client/v4/accounts/$accountId/ai/v1/chat/completions",
+                            apiKey=apiKey,model=model,systemPrompt=formattedSystemPrompt,
+                            incomingMessage=combinedMessage,senderName=effectiveSender,
+                            history=conversationHistory,provider="cloudflare_api")
+                    }
                     "gemini_api" -> callGemini(
                         apiKey = apiKey,
                         model = CloudAiModel.normalizeGeminiModel(model),

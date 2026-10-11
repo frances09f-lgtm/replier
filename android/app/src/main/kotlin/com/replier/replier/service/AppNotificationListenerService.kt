@@ -816,6 +816,26 @@ class AppNotificationListenerService : NotificationListenerService() {
                     )
                 }
             }
+            "cloudflare_api" -> {
+                val apiKey = ruleEngine.getCloudflareApiKey()
+                if (apiKey.isBlank()) {
+                    Log.w(TAG, "Cloudflare API key is blank. Falling back to local model immediately.")
+                    tryLocalFallback("Cloudflare API key is missing")
+                } else {
+                    val model = ruleEngine.getCloudflareModel()
+                    CloudAiService.getInstance(applicationContext).generateReply(
+                        engineType = "cloudflare_api",
+                        apiKey = apiKey,
+                        model = model,
+                        accountId = ruleEngine.getCloudflareAccountId(),
+                        senderName = sender,
+                        incomingMessages = messages,
+                        systemPrompt = finalSystemPrompt,
+                        conversationHistory = history,
+                        callback = cloudCallbackAdapter
+                    )
+                }
+            }
             "gemini_api" -> {
                 val apiKey = ruleEngine.getGeminiApiKey()
                 if (apiKey.isBlank()) {

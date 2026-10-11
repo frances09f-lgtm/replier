@@ -43,7 +43,7 @@ class MainActivity : FlutterActivity() {
         )
         nativeMethodChannel.setMethodCallHandler { call, result ->
             when (call.method) {
-                "loadProviderKeys" -> result.success(mapOf("groq" to ProviderSecrets.read(this,"groq"),"gemini" to ProviderSecrets.read(this,"gemini")))
+                "loadProviderKeys" -> result.success(mapOf("groq" to ProviderSecrets.read(this,"groq"),"gemini" to ProviderSecrets.read(this,"gemini"),"cloudflare" to ProviderSecrets.read(this,"cloudflare")))
                 "saveProviderKey" -> {try{ProviderSecrets.write(this,call.argument<String>("provider")?:"",call.argument<String>("value")?:"");result.success(null)}catch(_:Exception){result.error("SECURE_STORAGE","Could not store provider key",null)}}
                 "legacyBlocked" -> result.success(LegacyGuard.blocked(this))
                 "consentStatus" -> result.success(getSharedPreferences("automation_consent",0).getBoolean("accepted",false))
@@ -235,6 +235,36 @@ class MainActivity : FlutterActivity() {
                                         }
                                     } else {
                                         invokeLocalFallback(usage?.error ?: "Groq API error")
+                                    }
+                                }
+                            }
+                        }
+                        "cloudflare_api" -> {
+                            val apiKey = ruleEngine.getCloudflareApiKey()
+                            if (apiKey.isBlank()) {
+                                invokeLocalFallback("Cloudflare API key is missing")
+                            } else {
+                                val model = ruleEngine.getCloudflareModel()
+                                CloudAiService.getInstance(applicationContext).generateReply(
+                                    engineType = "cloudflare_api",
+                                    apiKey = apiKey,
+                                    model = model,
+                                    accountId = ruleEngine.getCloudflareAccountId(),
+                                    senderName = "User",
+                                    incomingMessages = listOf(message),
+                                    systemPrompt = systemPrompt,
+                                    conversationHistory = history
+                                ) { reply, usage ->
+                                    if (reply != null) {
+                                        runOnUiThread {
+                                            result.success(mapOf(
+                                                "reply" to reply,
+                                                "model" to engineType,
+                                                "fallback" to false
+                                            ))
+                                        }
+                                    } else {
+                                        invokeLocalFallback(usage?.error ?: "Cloudflare API error")
                                     }
                                 }
                             }

@@ -45,7 +45,8 @@ class NativeSyncService {
   Future<void> syncSettings(AppSettings settings) async {
     final safe = settings.toJson()
       ..remove('groqApiKey')
-      ..remove('geminiApiKey');
+      ..remove('geminiApiKey')
+      ..remove('cloudflareApiKey');
     final settingsJson = jsonEncode(safe);
 
     await _writeToFile(_settingsFileName, settingsJson);

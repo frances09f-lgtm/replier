@@ -43,6 +43,9 @@ class AppSettingsAdapter extends TypeAdapter<AppSettings> {
       gemmaLocalServerUrl: fields[31] as String,
       gemmaLocalModel: fields[32] as String,
       selectedLocalModel: fields[33] as String,
+      cloudflareApiKey: '',
+      cloudflareAccountId: fields[47] as String? ?? '',
+      cloudflareModel: fields[48] as String? ?? '@cf/qwen/qwen3-30b-a3b-fp8',
       groqApiKey: fields[37] as String? ?? '',
       groqModel: fields[38] as String? ?? 'openai/gpt-oss-20b',
       geminiApiKey: fields[39] as String? ?? '',
@@ -59,7 +62,13 @@ class AppSettingsAdapter extends TypeAdapter<AppSettings> {
   @override
   void write(BinaryWriter writer, AppSettings obj) {
     writer
-      ..writeByte(36)
+      ..writeByte(39)
+      ..writeByte(46)
+      ..write('')
+      ..writeByte(47)
+      ..write(obj.cloudflareAccountId)
+      ..writeByte(48)
+      ..write(obj.cloudflareModel)
       ..writeByte(0)
       ..write(obj.masterEnabled)
       ..writeByte(1)

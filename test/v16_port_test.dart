@@ -53,9 +53,13 @@ void main() {
     expect(r.getSettings().masterEnabled, isFalse);
     expect(r.getSettings().confirmBeforeReply, isTrue);
     await r.updateSettings(r.getSettings().copyWith(
-        groqApiKey: 'fixture-secret', geminiApiKey: 'fixture-secret'));
+        groqApiKey: 'fixture-secret',
+        geminiApiKey: 'fixture-secret',
+        cloudflareApiKey: 'fixture-secret'));
     expect(HiveConfig.getSettingsBox().get('settings')!.groqApiKey, isEmpty);
     expect(HiveConfig.getSettingsBox().get('settings')!.geminiApiKey, isEmpty);
+    expect(
+        HiveConfig.getSettingsBox().get('settings')!.cloudflareApiKey, isEmpty);
   });
   testWidgets('actual screens at small phone size', (t) async {
     t.view.physicalSize = const Size(360, 800);
@@ -125,5 +129,41 @@ void main() {
     expect(requested, isTrue);
     expect(
         find.textContaining('Fixture model server HTTP 503'), findsOneWidget);
+  });
+  testWidgets('Cloudflare settings card and account dialog at phone width',
+      (t) async {
+    await t.runAsync(() async {
+      final r = SettingsRepository();
+      await r.updateSettings(r
+          .getSettings()
+          .copyWith(aiReplyEnabled: true, aiModelType: 'cloudflare_api'));
+    });
+    t.view.physicalSize = const Size(360, 800);
+    t.view.devicePixelRatio = 1;
+    await t.pumpWidget(const RepaintBoundary(
+        key: ValueKey('cloudflareRoot'),
+        child: ProviderScope(child: MaterialApp(home: SettingsScreen()))));
+    await t.pumpAndSettle();
+    final card = find.text('Cloudflare Workers AI');
+    await t.scrollUntilVisible(card, 200,
+        scrollable: find.byType(Scrollable).first);
+    await t.pumpAndSettle();
+    expect(card, findsOneWidget);
+    expect(t.takeException(), isNull);
+    await t.tap(find.text('Set API Key & Model'));
+    await t.pumpAndSettle();
+    expect(find.text('Cloudflare Account ID'), findsOneWidget);
+    expect(t.takeException(), isNull);
+    final b = t.firstRenderObject<RenderRepaintBoundary>(
+        find.byKey(const ValueKey('cloudflareRoot')));
+    await t.runAsync(() async {
+      final image = await b.toImage();
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      await File('/tmp/replier18-cloudflare-dialog.png')
+          .writeAsBytes(data!.buffer.asUint8List());
+      image.dispose();
+    });
+    await t.pumpWidget(const SizedBox());
+    await t.pump();
   });
 }

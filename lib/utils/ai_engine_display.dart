@@ -7,6 +7,7 @@ class AiEngineDisplay {
   static const List<String> allEngineIds = [
     'groq_api',
     'gemini_api',
+    'cloudflare_api',
     'phi_local',
   ];
 
@@ -22,6 +23,11 @@ class AiEngineDisplay {
           label: 'Google Gemini',
           icon: Icons.auto_awesome,
           color: Colors.blue.shade700,
+        ),
+      'cloudflare_api' => (
+          label: 'Cloudflare AI',
+          icon: Icons.cloud,
+          color: Colors.deepOrange
         ),
       'phi_local' => (
           label: 'On-Device AI',

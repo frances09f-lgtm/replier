@@ -295,7 +295,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               engineType: 'groq_api',
               title: 'Groq Cloud API (⚡ Super-Fast)',
               subtitle:
-                  '800+ tokens/sec, ~1,000 free replies/day · 30 RPM (LPU accelerated)',
+                  'Free limits: 1,000 requests/day and 200,000 tokens/day; actual replies vary.',
               badge: 'High Speed',
               badgeColor: Colors.orange[700]!,
               apiKey: settings.groqApiKey,
@@ -316,6 +316,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             const SizedBox(height: 8),
 
+            _buildEngineOptionCard(
+              context: context,
+              ref: ref,
+              settings: settings,
+              engineType: 'cloudflare_api',
+              title: 'Cloudflare Workers AI',
+              subtitle:
+                  '10,000 free Neurons/day. Reply budget depends on model and message length.',
+              badge: 'New',
+              badgeColor: Colors.deepOrange,
+              apiKey: settings.cloudflareApiKey,
+              model: settings.cloudflareModel,
+              defaultModel: '@cf/qwen/qwen3-30b-a3b-fp8',
+              availableModels: const [
+                '@cf/qwen/qwen3-30b-a3b-fp8',
+                '@cf/openai/gpt-oss-20b'
+              ],
+              keyUrl: 'https://dash.cloudflare.com',
+              accountId: settings.cloudflareAccountId,
+              onSave: (key, model) {},
+              onCloudflareSave: (key, account, model) => ref
+                  .read(appSettingsProvider.notifier)
+                  .updateCloudflareConfig(key, account, model),
+            ),
+            const SizedBox(height: 8),
             // Engine Option 2: Gemini Flash
             _buildEngineOptionCard(
               context: context,
@@ -323,7 +348,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               settings: settings,
               engineType: 'gemini_api',
               title: 'Google Gemini Flash (🌟 Google AI)',
-              subtitle: '250–500 free requests/day · 15 RPM (Google AI)',
+              subtitle:
+                  'Free quota depends on project/model. Free inputs may be used to improve Google products.',
               badge: 'Smart',
               badgeColor: Colors.blue[700]!,
               apiKey: settings.geminiApiKey,
@@ -736,6 +762,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required List<String> availableModels,
     required String keyUrl,
     required Function(String key, String model) onSave,
+    String? accountId,
+    Future<void> Function(String key, String account, String model)?
+        onCloudflareSave,
   }) {
     final isSelected = settings.aiModelType == engineType;
     final hasKey = apiKey.trim().isNotEmpty;
@@ -818,7 +847,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 color: hasKey ? Colors.green : Colors.orange,
                               ),
                               const SizedBox(width: 6),
-                              Text(
+                              Expanded(
+                                  child: Text(
                                 hasKey
                                     ? 'API Key Configured'
                                     : (settings.fallbackToLocalModel
@@ -833,13 +863,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                           ? Colors.blue[800]
                                           : Colors.orange[800]),
                                 ),
-                              ),
+                              )),
                               const Spacer(),
-                              Text(
+                              Flexible(
+                                  child: Text(
                                 'Model: $effectiveModel',
                                 style: TextStyle(
                                     fontSize: 11, color: Colors.grey[600]),
-                              ),
+                              )),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -855,6 +886,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   availableModels: availableModels,
                                   keyUrl: keyUrl,
                                   onSave: onSave,
+                                  accountId: accountId,
+                                  onCloudflareSave: onCloudflareSave,
                                 );
                               },
                               icon: const Icon(Icons.key, size: 16),
@@ -882,8 +915,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     required List<String> availableModels,
     required String keyUrl,
     required Function(String key, String model) onSave,
+    String? accountId,
+    Future<void> Function(String key, String account, String model)?
+        onCloudflareSave,
   }) {
     final keyController = TextEditingController(text: apiKey);
+    final accountController = TextEditingController(text: accountId ?? '');
     String selectedModel = availableModels.contains(currentModel)
         ? currentModel
         : availableModels.first;
@@ -901,6 +938,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (accountId != null) ...[
+                  TextField(
+                      controller: accountController,
+                      decoration: const InputDecoration(
+                          labelText: 'Cloudflare Account ID',
+                          hintText: '32-character ID',
+                          border: OutlineInputBorder())),
+                  const SizedBox(height: 12),
+                  const Text(
+                      'Messages and chat context go to Cloudflare. Token is encrypted on this device. Free budget is model-dependent; no automatic paid upgrade.'),
+                  const SizedBox(height: 12),
+                ],
                 const Text('API Key',
                     style:
                         TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
@@ -941,10 +990,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
+                  isExpanded: true,
                   items: availableModels.map((m) {
                     return DropdownMenuItem(
                       value: m,
-                      child: Text(m, style: const TextStyle(fontSize: 13)),
+                      child: Text(m,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13)),
                     );
                   }).toList(),
                   onChanged: (val) {
@@ -960,8 +1012,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                onSave(keyController.text.trim(), selectedModel);
+              onPressed: () async {
+                if (onCloudflareSave != null) {
+                  if (!RegExp(r'^[a-fA-F0-9]{32}$')
+                      .hasMatch(accountController.text.trim())) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text(
+                            'Enter the 32-character Cloudflare account ID')));
+                    return;
+                  }
+                  try {
+                    await onCloudflareSave(keyController.text.trim(),
+                        accountController.text.trim(), selectedModel);
+                  } catch (_) {
+                    if (context.mounted)
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content:
+                              Text('Could not save Cloudflare configuration')));
+                    return;
+                  }
+                } else {
+                  onSave(keyController.text.trim(), selectedModel);
+                }
+                if (!context.mounted) return;
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('API Configuration Saved')),

@@ -86,6 +86,9 @@ object CloudAiRequestBuilder {
 
         return JSONObject().apply {
             put("model", model)
+            if(provider=="cloudflare_api" && model.contains("qwen3")) {
+                messagesArray.getJSONObject(messagesArray.length()-1).put("content", currentContent + "\n/no_think")
+            }
             put("messages", messagesArray)
             put("max_tokens", maxTokens)
             put("temperature", temperature)
@@ -95,7 +98,7 @@ object CloudAiRequestBuilder {
                 model.contains("r1", ignoreCase = true) ||
                 model.contains("deepseek", ignoreCase = true)
 
-            if (isGroqOrReasoning) {
+            if (isGroqOrReasoning && provider != "cloudflare_api") {
                 put("reasoning_format", "hidden")
                 if (model.contains("oss", ignoreCase = true)) {
                     put("reasoning_effort", "low")

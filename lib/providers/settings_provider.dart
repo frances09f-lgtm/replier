@@ -154,6 +154,13 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
     await _syncService.syncSettings(s);
   }
 
+  Future<void> updateCloudflareConfig(
+      String key, String account, String model) async {
+    await _repository.updateCloudflareConfig(key, account, model);
+    state = _repository.getSettings();
+    await _syncService.syncSettings(state);
+  }
+
   Future<void> updateGeminiConfig(String apiKey, String model) async {
     await _repository.updateGeminiConfig(apiKey, model);
     final s = _repository.getSettings();
