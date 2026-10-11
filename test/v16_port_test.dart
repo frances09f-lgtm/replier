@@ -91,4 +91,39 @@ void main() {
       await t.pump();
     }
   });
+  testWidgets('Qwen tile tap calls native download and shows returned failure',
+      (t) async {
+    var requested = false;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel(AppConstants.nativeChannel), (call) async {
+      if (call.method == 'loadProviderKeys') return {'groq': '', 'gemini': ''};
+      if (call.method == 'getPhiStatus') return {'available': false};
+      if (call.method == 'downloadPhiModel') {
+        requested = call.arguments['modelId'] == 'qwen_2_5_1_5b';
+        return {'success': false, 'error': 'Fixture model server HTTP 503'};
+      }
+      return null;
+    });
+    await t.runAsync(() async {
+      final r = SettingsRepository();
+      await r.updateSettings(r.getSettings().copyWith(
+          aiModelType: 'phi_local',
+          fallbackToLocalModel: true,
+          aiReplyEnabled: true));
+    });
+    t.view.physicalSize = const Size(360, 6000);
+    t.view.devicePixelRatio = 1;
+    await t.pumpWidget(
+        const ProviderScope(child: MaterialApp(home: SettingsScreen())));
+    await t.pumpAndSettle();
+    final q = find.text('Qwen 2.5 1.5B Instruct');
+    expect(q, findsOneWidget);
+    await t.pumpAndSettle();
+    await t.tap(q);
+    await t.pumpAndSettle();
+    expect(requested, isTrue);
+    expect(
+        find.textContaining('Fixture model server HTTP 503'), findsOneWidget);
+  });
 }
