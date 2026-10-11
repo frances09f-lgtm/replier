@@ -385,8 +385,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     groupValue: settings.aiModelType,
                     title: const Row(
                       children: [
-                        Text('On-Device Llama 3.2 1B',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        Expanded(
+                            child: Text('On-Device Llama 3.2 1B',
+                                style: TextStyle(fontWeight: FontWeight.bold))),
                         SizedBox(width: 8),
                         Icon(Icons.offline_bolt, size: 18, color: Colors.green),
                       ],
