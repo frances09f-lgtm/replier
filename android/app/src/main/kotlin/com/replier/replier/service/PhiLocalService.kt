@@ -36,6 +36,7 @@ class PhiLocalService private constructor(private val context: Context) {
             val filename: String,
             val url: String,
             val sizeBytes: Long,
+            val sha256: String,
             val description: String,
             val threads: Int = 4,
             val contextSize: Int = 2048,
@@ -47,7 +48,8 @@ class PhiLocalService private constructor(private val context: Context) {
                 displayName = "Llama 3.2 1B Instruct",
                 filename = "llama-3.2-1b-instruct-q4_k_m.gguf",
                 url = "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-                sizeBytes = 850_000_000L,
+                sizeBytes = 807_694_464L,
+                sha256 = "6f85a640a97cf2bf5b8e764087b1e83da0fdb51d7c9fab7d0fece9385611df83",
                 description = "~800MB, blazing fast for basic replies",
                 threads = 4,
                 contextSize = 4096,
@@ -57,7 +59,8 @@ class PhiLocalService private constructor(private val context: Context) {
                 displayName = "Qwen 2.5 1.5B Instruct",
                 filename = "qwen2.5-1.5b-instruct-q4_k_m.gguf",
                 url = "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
-                sizeBytes = 986_000_000L,
+                sizeBytes = 986_048_768L,
+                sha256 = "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370",
                 description = "~980MB, best for multilingual & casual chats",
                 threads = 4,
                 contextSize = 4096,
@@ -91,8 +94,10 @@ class PhiLocalService private constructor(private val context: Context) {
     fun isModelAvailable(modelId: String): Boolean {
         val config = MODEL_REGISTRY[modelId] ?: return false
         val f = getModelFile(config)
-        return f.exists() && f.length() > config.sizeBytes / 2
+        return f.exists() && f.length() == config.sizeBytes && validGguf(f)
     }
+
+    private fun validGguf(file: File): Boolean = try { file.inputStream().use { input -> val magic=ByteArray(4); input.read(magic)==4 && magic.contentEquals(byteArrayOf(71,71,85,70)) } } catch (_: Exception) { false }
 
     fun getModelFile(config: ModelConfig): File = File(context.filesDir, config.filename)
 
@@ -125,46 +130,57 @@ class PhiLocalService private constructor(private val context: Context) {
         executor.execute {
             var conn: HttpURLConnection? = null
             try {
-                val url = URL(config.url)
-                conn = url.openConnection() as HttpURLConnection
-                conn.connectTimeout = 30_000
-                conn.readTimeout = 120_000
-                conn.connect()
-
-                val totalSize = conn.contentLength.toLong().coerceAtLeast(config.sizeBytes)
-                val input = conn.inputStream
-                val output = FileOutputStream(getModelFile(config))
-
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                var totalRead = 0L
-
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                    totalRead += bytesRead
-                    val progress = ((totalRead * 100) / totalSize).toInt().coerceIn(0, 100)
-                    if (progress != (downloadProgressMap[modelId] ?: 0)) {
-                        downloadProgressMap[modelId] = progress
-                        onProgress?.invoke(progress)
+                val target = getModelFile(config)
+                val partial = File(target.path + ".part")
+                if (partial.length() >= config.sizeBytes) partial.delete()
+                var offset = partial.length()
+                if (context.filesDir.usableSpace < config.sizeBytes - offset + 100_000_000L) throw java.io.IOException("Not enough free space. Qwen needs about 1.1 GB free storage.")
+                var next = URL(config.url)
+                var redirects = 0
+                while (true) {
+                    if (next.protocol != "https") throw java.io.IOException("Download redirected to an insecure URL")
+                    conn = next.openConnection() as HttpURLConnection
+                    conn.connectTimeout = 30_000
+                    conn.readTimeout = 120_000
+                    conn.instanceFollowRedirects = false
+                    conn.setRequestProperty("User-Agent", "Replier/17 Android model download")
+                    if (offset > 0) conn.setRequestProperty("Range", "bytes=$offset-")
+                    val code = conn.responseCode
+                    if (code in listOf(301,302,303,307,308)) {
+                        if (++redirects > 10) throw java.io.IOException("Too many download redirects")
+                        val location = conn.getHeaderField("Location") ?: throw java.io.IOException("Missing redirect destination")
+                        next = URL(next, location); conn.disconnect(); continue
+                    }
+                    if (code != 200 && code != 206) throw java.io.IOException("Model server returned HTTP $code. Check your connection and try again.")
+                    if (code == 200) offset = 0
+                    if (code == 206 && conn.getHeaderField("Content-Range")?.startsWith("bytes $offset-") != true) throw java.io.IOException("Invalid resume response. Try again.")
+                    break
+                }
+                var totalRead = offset
+                conn.inputStream.use { input ->
+                    FileOutputStream(partial, offset > 0).use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            val count = input.read(buffer); if (count < 0) break
+                            output.write(buffer, 0, count); totalRead += count
+                            if (totalRead > config.sizeBytes) throw java.io.IOException("Unexpected model size")
+                            val progress = (totalRead * 100 / config.sizeBytes).toInt().coerceIn(0,99)
+                            if (progress != downloadProgressMap[modelId]) { downloadProgressMap[modelId]=progress; onProgress?.invoke(progress) }
+                        }
                     }
                 }
-
-                output.flush()
-                output.close()
-                input.close()
-
-                val file = getModelFile(config)
-                if (file.exists() && file.length() > config.sizeBytes / 2) {
-                    Log.d(TAG, "Model $modelId downloaded: ${file.length()} bytes")
-                    onComplete?.invoke(true, null)
-                } else {
-                    file.delete()
-                    onComplete?.invoke(false, "Download incomplete")
-                }
+                if (partial.length() != config.sizeBytes || !validGguf(partial)) throw java.io.IOException("Download incomplete. Tap Download again to resume.")
+                val digest = java.security.MessageDigest.getInstance("SHA-256")
+                partial.inputStream().use { input -> val buffer=ByteArray(64*1024); while(true){val count=input.read(buffer);if(count<0)break;digest.update(buffer,0,count)} }
+                val hash=digest.digest().joinToString(""){ "%02x".format(it) }
+                if (hash != config.sha256) { partial.delete(); throw java.io.IOException("Model integrity check failed. Please download again.") }
+                if (target.exists()) target.delete()
+                if (!partial.renameTo(target)) throw java.io.IOException("Could not save model to app storage")
+                downloadProgressMap[modelId]=100; onProgress?.invoke(100)
+                onComplete?.invoke(true,null)
             } catch (e: Exception) {
                 Log.e(TAG, "Download failed for $modelId", e)
-                getModelFile(config).delete()
-                onComplete?.invoke(false, e.message)
+                onComplete?.invoke(false, e.message ?: "Download failed. Check connection and free storage.")
             } finally {
                 conn?.disconnect()
                 downloadingMap[modelId] = false

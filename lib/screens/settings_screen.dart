@@ -83,7 +83,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 .requestPostNotificationPermission(),
           ),
 
-          const ListTile(leading:Icon(Icons.shield_outlined),title:Text('Accessibility sending disabled'),subtitle:Text('Replier only sends through a verified notification reply action. No accessibility access needed.')),
+          const ListTile(
+              leading: Icon(Icons.shield_outlined),
+              title: Text('Accessibility sending disabled'),
+              subtitle: Text(
+                  'Replier only sends through a verified notification reply action. No accessibility access needed.')),
 
           _PermissionTile(
             title: 'Battery Optimization',
@@ -1577,8 +1581,12 @@ class _ModelRadioTileState extends State<_ModelRadioTile>
           }
         }
       });
-      await channel
-          .invokeMethod('downloadPhiModel', {'modelId': widget.modelId});
+      final result = await channel
+          .invokeMethod<Map>('downloadPhiModel', {'modelId': widget.modelId});
+      if (result?['success'] != true) {
+        throw StateError(result?['error']?.toString() ??
+            'Download failed. Check network and storage.');
+      }
       await _checkStatus();
     } catch (e) {
       if (mounted)
