@@ -21,7 +21,7 @@ android {
         applicationId = "com.ambi.replier"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 26
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
@@ -44,6 +44,8 @@ android {
         }
     }
 
+    testOptions { unitTests.isReturnDefaultValues = true }
+    packaging { jniLibs.useLegacyPackaging = true }
     buildTypes {
         release {
             signingConfig = if (replierKeystoreFile != null) {
@@ -63,4 +65,12 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+ implementation("com.google.mlkit:smart-reply:17.0.3")
+ implementation("dev.ffmpegkit-maintained:llama-android:0.1.1")
+ implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+ testImplementation("junit:junit:4.13.2")
+ testImplementation("org.json:json:20240303")
 }
