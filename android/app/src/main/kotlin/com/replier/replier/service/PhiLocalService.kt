@@ -75,6 +75,8 @@ class PhiLocalService private constructor(private val context: Context) {
 
     private val loadedModels = ConcurrentHashMap<String, LlamaModel>()
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val preloadExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val loadLock = Any()
     private val downloadExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val downloadProgressMap = ConcurrentHashMap<String, Int>()
     private val downloadingMap = ConcurrentHashMap<String, Boolean>()
@@ -200,7 +202,7 @@ class PhiLocalService private constructor(private val context: Context) {
      */
     fun preloadModel(modelId: String = "llama_3_2_1b") {
         if (loadedModels.containsKey(modelId) || !isModelAvailable(modelId)) return
-        executor.execute {
+        preloadExecutor.execute {
             try {
                 Log.d(TAG, "Preloading local model $modelId")
                 loadModel(modelId)
@@ -210,20 +212,20 @@ class PhiLocalService private constructor(private val context: Context) {
         }
     }
 
-    private fun loadModel(modelId: String): LlamaModel? {
-        loadedModels[modelId]?.let { return it }
+    private fun loadModel(modelId: String): LlamaModel? = synchronized(loadLock) {
+        loadedModels[modelId]?.let { return@synchronized it }
         val config = MODEL_REGISTRY[modelId] ?: run {
             if (modelId != "llama_3_2_1b") {
                 Log.w(TAG, "Unknown local model $modelId - falling back to llama_3_2_1b")
                 return loadModel("llama_3_2_1b")
             }
-            return null
+            return@synchronized null
         }
         try {
             val modelFile = getModelFile(config)
             if (!modelFile.exists()) {
                 Log.w(TAG, "Model file not found for $modelId")
-                return null
+                return@synchronized null
             }
 
             val loaded = runBlocking {
@@ -234,10 +236,10 @@ class PhiLocalService private constructor(private val context: Context) {
             }
             loadedModels[modelId] = loaded
             Log.d(TAG, "Model $modelId loaded successfully")
-            return loaded
+            return@synchronized loaded
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to load model $modelId", e)
-            return null
+            return@synchronized null
         }
     }
 
@@ -397,6 +399,7 @@ class PhiLocalService private constructor(private val context: Context) {
         }
         loadedModels.clear()
         executor.shutdown()
+        preloadExecutor.shutdown()
     }
 }
 

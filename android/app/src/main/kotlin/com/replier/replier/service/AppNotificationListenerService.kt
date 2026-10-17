@@ -37,6 +37,8 @@ class AppNotificationListenerService : NotificationListenerService() {
     companion object {
         private const val TAG = "AppNotificationListener"
         private const val CONFIRM_NOTIFICATION_CHANNEL_ID = "confirm_reply_channel"
+        private const val REPLY_ERROR_CHANNEL_ID = "reply_error_channel"
+        private const val REPLY_ERROR_NOTIFICATION_ID = 977
         private const val CONFIRM_NOTIFICATION_ID_BASE = 9000
         private const val CONFIRM_TIMEOUT_MS = 15_000L
 
@@ -700,9 +702,14 @@ class AppNotificationListenerService : NotificationListenerService() {
      */
     private fun sendBatchedAiReply(batch: MessageBatcher.BatchReadyCallback, modelType: String) {
         val attemptId = batch.analysisId
-        if (!analysisAttempts.isActive(attemptId)) return
+        if (!analysisAttempts.isActive(attemptId)) {
+            notifyReplyError("Reply analysis expired before it could start")
+            return
+        }
+        notifyPipelineStatus("analysing", batch.sender)
         if (batch.isGroupChat || confirmedDirectTarget(batch.latestNotificationKey, batch.packageName,
                 batch.latestShortcutId, batch.latestTag, batch.latestId) == null) {
+            notifyReplyError("Reply skipped: conversation could not be confirmed as a one-to-one chat")
             failAnalysis(attemptId)
             return
         }
@@ -899,7 +906,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             if (!aiReply.isNullOrBlank()) {
                 deliverReply(aiReply, "phi_local", tokensUsed)
             } else {
-                if (error != null) Log.e(TAG, "Local reply failed for $sender: $error")
+                notifyReplyError("Local reply failed: ${error ?: "empty response"}")
                 failAnalysis(attemptId)
             }
         }
@@ -985,7 +992,8 @@ class AppNotificationListenerService : NotificationListenerService() {
                 )
             }
         }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            notifyReplyError("Reply pipeline error: ${e.message ?: e.javaClass.simpleName}")
             failAnalysis(attemptId)
         }
     }
@@ -1233,6 +1241,40 @@ class AppNotificationListenerService : NotificationListenerService() {
             // Ambiguous fallback is not safe even if the notifications share an ID.
             candidates.firstOrNull { it.key == key } ?: candidates.singleOrNull()
         } catch (_: Exception) { null }
+    }
+
+    private var replyErrorNotifiedAt = 0L
+
+    /** Post a real system notification when the reply pipeline fails, so failures are visible. */
+    private fun notifyReplyError(reason: String) {
+        Log.e(TAG, "Reply pipeline error: $reason")
+        mainHandler.post {
+            methodChannel?.invokeMethod("onReplyFailed", reason)
+        }
+        // Throttle to one notification per 30s to avoid spam
+        val nowMs = System.currentTimeMillis()
+        if (nowMs - replyErrorNotifiedAt < 30_000L) return
+        replyErrorNotifiedAt = nowMs
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val channel = android.app.NotificationChannel(
+                    REPLY_ERROR_CHANNEL_ID,
+                    "Reply errors",
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply { description = "Shows why an auto-reply failed" }
+                getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            }
+            val n = Notification.Builder(this, REPLY_ERROR_CHANNEL_ID)
+                .setContentTitle("Auto-reply failed")
+                .setContentText(reason)
+                .setStyle(Notification.BigTextStyle().bigText(reason))
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setAutoCancel(true)
+                .build()
+            getSystemService(NotificationManager::class.java).notify(REPLY_ERROR_NOTIFICATION_ID, n)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to post reply error notification", e)
+        }
     }
 
     private fun notifyUnsafeChatSkipped() {
