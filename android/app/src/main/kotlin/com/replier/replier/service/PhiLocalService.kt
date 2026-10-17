@@ -54,17 +54,6 @@ class PhiLocalService private constructor(private val context: Context) {
                 threads = 4,
                 contextSize = 4096,
             ),
-            "qwen_2_5_1_5b" to ModelConfig(
-                id = "qwen_2_5_1_5b",
-                displayName = "Qwen 2.5 1.5B Instruct",
-                filename = "qwen2.5-1.5b-instruct-q4_k_m.gguf",
-                url = "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
-                sizeBytes = 986_048_768L,
-                sha256 = "1adf0b11065d8ad2e8123ea110d1ec956dab4ab038eab665614adba04b6c3370",
-                description = "~980MB, best for multilingual & casual chats",
-                threads = 4,
-                contextSize = 4096,
-            ),
         )
 
         private const val LLAMA_BEGIN = "<|begin_of_text|>"
@@ -93,6 +82,11 @@ class PhiLocalService private constructor(private val context: Context) {
     fun getModelConfig(modelId: String): ModelConfig? = MODEL_REGISTRY[modelId]
 
     fun isModelAvailable(modelId: String): Boolean {
+        val effectiveId = if (MODEL_REGISTRY.containsKey(modelId)) modelId else "llama_3_2_1b"
+        return isModelAvailableExact(effectiveId)
+    }
+
+    private fun isModelAvailableExact(modelId: String): Boolean {
         val config = MODEL_REGISTRY[modelId] ?: return false
         val f = getModelFile(config)
         return f.exists() && f.length() == config.sizeBytes && validGguf(f)
@@ -135,7 +129,7 @@ class PhiLocalService private constructor(private val context: Context) {
                 val partial = File(target.path + ".part")
                 if (partial.length() >= config.sizeBytes) partial.delete()
                 var offset = partial.length()
-                if (context.filesDir.usableSpace < config.sizeBytes - offset + 100_000_000L) throw java.io.IOException("Not enough free space. Qwen needs about 1.1 GB free storage.")
+                if (context.filesDir.usableSpace < config.sizeBytes - offset + 100_000_000L) throw java.io.IOException("Not enough free space. ${config.displayName} needs about ${(config.sizeBytes / 1_000_000) + 100} MB free storage.")
                 var next = URL(config.url)
                 var redirects = 0
                 while (true) {
@@ -199,9 +193,32 @@ class PhiLocalService private constructor(private val context: Context) {
         if (file.exists()) file.delete()
     }
 
+    /**
+     * Warm the default local model in the background when the service starts,
+     * so the first reply does not wait on a ~1GB model load. No-op unless the
+     * model is already downloaded.
+     */
+    fun preloadModel(modelId: String = "llama_3_2_1b") {
+        if (loadedModels.containsKey(modelId) || !isModelAvailable(modelId)) return
+        executor.execute {
+            try {
+                Log.d(TAG, "Preloading local model $modelId")
+                loadModel(modelId)
+            } catch (e: Exception) {
+                Log.e(TAG, "Model preload failed for $modelId", e)
+            }
+        }
+    }
+
     private fun loadModel(modelId: String): LlamaModel? {
         loadedModels[modelId]?.let { return it }
-        val config = MODEL_REGISTRY[modelId] ?: return null
+        val config = MODEL_REGISTRY[modelId] ?: run {
+            if (modelId != "llama_3_2_1b") {
+                Log.w(TAG, "Unknown local model $modelId - falling back to llama_3_2_1b")
+                return loadModel("llama_3_2_1b")
+            }
+            return null
+        }
         try {
             val modelFile = getModelFile(config)
             if (!modelFile.exists()) {
@@ -285,7 +302,7 @@ class PhiLocalService private constructor(private val context: Context) {
                         Llama.complete(
                             model = loadedModel,
                             prompt = prompt,
-                            maxTokens = 100
+                            maxTokens = 40
                         )
                     }
                 }
@@ -339,28 +356,7 @@ class PhiLocalService private constructor(private val context: Context) {
         
         val optimizedSystemPrompt = buildSystemPrompt(systemPrompt, senderName)
         
-        if (modelId.startsWith("qwen", ignoreCase = true)) {
-            // ChatML template for Qwen
-            sb.append("<|im_start|>system\n$optimizedSystemPrompt<|im_end|>\n")
-
-            for (msg in history) {
-                val role = if (msg.role == "user") "user" else "assistant"
-                val content = if (msg.role == "user" && !msg.content.startsWith("$senderName:")) {
-                    "$senderName: ${msg.content}"
-                } else {
-                    msg.content
-                }
-                sb.append("<|im_start|>$role\n$content<|im_end|>\n")
-            }
-
-            val currentTurnContent = if (!incomingMessage.startsWith("$senderName:")) {
-                "$senderName: $incomingMessage"
-            } else {
-                incomingMessage
-            }
-            sb.append("<|im_start|>user\n$currentTurnContent<|im_end|>\n")
-            sb.append("<|im_start|>assistant\n")
-        } else {
+        run {
             // Llama 3.2 Instruct chat template (for 1B)
             sb.append("${LLAMA_BEGIN}${LLAMA_HDR_START}system${LLAMA_HDR_END}\n\n$optimizedSystemPrompt${LLAMA_EOT}\n")
 

@@ -95,7 +95,7 @@ void main() {
       await t.pump();
     }
   });
-  testWidgets('Qwen tile tap calls native download and shows returned failure',
+  testWidgets('Local model tile tap calls native download and shows returned failure',
       (t) async {
     var requested = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -104,7 +104,7 @@ void main() {
       if (call.method == 'loadProviderKeys') return {'groq': '', 'gemini': ''};
       if (call.method == 'getPhiStatus') return {'available': false};
       if (call.method == 'downloadPhiModel') {
-        requested = call.arguments['modelId'] == 'qwen_2_5_1_5b';
+        requested = call.arguments['modelId'] == 'llama_3_2_1b';
         return {'success': false, 'error': 'Fixture model server HTTP 503'};
       }
       return null;
@@ -121,7 +121,7 @@ void main() {
     await t.pumpWidget(
         const ProviderScope(child: MaterialApp(home: SettingsScreen())));
     await t.pumpAndSettle();
-    final q = find.text('Qwen 2.5 1.5B Instruct');
+    final q = find.text('Llama 3.2 1B Instruct');
     expect(q, findsOneWidget);
     await t.pumpAndSettle();
     await t.tap(q);

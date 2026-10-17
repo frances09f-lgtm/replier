@@ -116,6 +116,11 @@ class AppNotificationListenerService : NotificationListenerService() {
     private val lastHandledIncoming = ConcurrentHashMap<String, Pair<String, Long>>()
     private val incomingDedupeWindowMs = 60_000L
 
+    // Notification-to-reply timing (spec: measure notification -> reply sent)
+    private val notificationArrivalTimes = ConcurrentHashMap<String, Long>()
+
+    private val maxChatbotContextChars = 600
+
     private val supportedPackages = listOf(
         "com.whatsapp",
         "com.instagram.android"
@@ -303,6 +308,12 @@ class AppNotificationListenerService : NotificationListenerService() {
 
         val packageName = sbn.packageName
         if (!supportedPackages.contains(packageName)) return
+
+        notificationArrivalTimes[sbn.key] = SystemClock.elapsedRealtime()
+        if (notificationArrivalTimes.size > 100) {
+            val cutoff = SystemClock.elapsedRealtime() - 10 * 60_000L
+            notificationArrivalTimes.entries.removeIf { it.value < cutoff }
+        }
 
         pendingReplies.entries.filter { it.value.notificationKey==sbn.key }.forEach { (id, _)-> pendingReplies.remove(id);getSystemService(NotificationManager::class.java).cancel(CONFIRM_NOTIFICATION_ID_BASE+id.hashCode()) }
         activeScheduledReplies.entries.filter{it.value.notificationKey==sbn.key}.forEach{(sender,_)->cancelScheduledReply(sender)}
@@ -644,6 +655,11 @@ class AppNotificationListenerService : NotificationListenerService() {
                             }
                             action.actionIntent.send(applicationContext, 0, replyIntent)
                             ruleEngine.recordReplySent(sender, replyText)
+
+                            val arrivedAt = notificationArrivalTimes.remove(key)
+                            if (arrivedAt != null) {
+                                Log.d(TAG, "Notification-to-reply: ${SystemClock.elapsedRealtime() - arrivedAt} ms for $sender")
+                            }
                             Log.d(TAG, "Pipeline event")
                             mainHandler.post {
                                 val replyData = JSONObject().apply {
@@ -694,7 +710,12 @@ class AppNotificationListenerService : NotificationListenerService() {
         val messages = batch.messages.map { it.message }
         val rawHistory = ConversationHistory.getHistory(sender)
         val baseSystemPrompt = ruleEngine.getAiSystemPromptWithTraining()
-        val chatbotCtx = getChatbotContext()
+        val fullChatbotCtx = getChatbotContext()
+        val chatbotCtx = if (fullChatbotCtx.length > maxChatbotContextChars) {
+            fullChatbotCtx.takeLast(maxChatbotContextChars)
+        } else {
+            fullChatbotCtx
+        }
         val finalSystemPrompt = if (chatbotCtx.isNotEmpty()) {
             "$baseSystemPrompt\n\n---\nCHAT CONTEXT (The user told the chatbot this — use it for awareness but do NOT mention the chatbot):\n$chatbotCtx\n---"
         } else {

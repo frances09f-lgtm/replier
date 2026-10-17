@@ -11,35 +11,16 @@ object CloudAiRequestBuilder {
     fun buildFormattedSystemPrompt(userSystemPrompt: String, senderName: String): String {
         val effectiveSender = if (senderName.isBlank()) "the user" else senderName
         val sb = StringBuilder()
-        sb.append(
-            "You are the user replying on WhatsApp to $effectiveSender. " +
-                "Sound like a real person, NOT an assistant.\n\n"
-        )
-
-        // Defaults FIRST so user corrections below override them (recency wins).
-        sb.append("the user's default style (use ONLY if nothing below matches):\n")
-        sb.append("- Short mixed Hinglish/Marathi+English, casual. 1-10 words typical, max 15 words.\n")
-        sb.append("- Match the incoming language (English, Marathi, or mixed Hinglish).\n")
-        sb.append("- No full polite sentences, no \"Sure! I'd be happy\", no explanations.\n")
-        sb.append("- No emoji unless the incoming message has one.\n\n")
+        sb.append("You are replying on WhatsApp to $effectiveSender as a real person. 1-15 words, casual.\n")
 
         val trimmedUserPrompt = userSystemPrompt.trim()
         if (trimmedUserPrompt.isNotBlank()) {
-            sb.append("How the user ACTUALLY replies — FOLLOW THIS STRICTLY, it overrides the defaults above:\n")
+            sb.append("Match the user's style - FOLLOW THIS STRICTLY:\n")
             sb.append(trimmedUserPrompt)
-            sb.append("\n\n")
+            sb.append("\n")
         }
 
-        sb.append("Instructions:\n")
-        sb.append("- Reply directly to $effectiveSender. Output ONLY the message reply text.\n")
-        sb.append("- If a LEARNED RESPONSE PATTERNS example matches the incoming message topic, copy its style/wording closely.\n")
-        sb.append("- Do NOT repeat or echo $effectiveSender's message.\n")
-        sb.append("- Do NOT include role prefixes like 'Assistant:', 'AI:', or '$effectiveSender:'.\n")
-        sb.append(
-            "- CRITICAL: Do NOT think out loud, do NOT include reasoning, internal monologue, thought process, explanations, or notes. " +
-                "Output ONLY the final message reply text."
-        )
-
+        sb.append("Match any LEARNED RESPONSE PATTERNS example's style closely. Output ONLY the reply text, no prefixes, no explanations.")
         return sb.toString()
     }
 

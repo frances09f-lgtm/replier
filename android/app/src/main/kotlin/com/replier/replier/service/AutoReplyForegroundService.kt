@@ -40,6 +40,9 @@ class AutoReplyForegroundService : Service() {
         Log.d(TAG, "Foreground service created")
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, buildNotification())
+
+        // Warm the local model in the background so the first reply is fast
+        PhiLocalService.getInstance(this).preloadModel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
