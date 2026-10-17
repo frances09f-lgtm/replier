@@ -204,7 +204,7 @@ class PhiLocalService private constructor(private val context: Context) {
             try {
                 Log.d(TAG, "Preloading local model $modelId")
                 loadModel(modelId)
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "Model preload failed for $modelId", e)
             }
         }
@@ -235,7 +235,7 @@ class PhiLocalService private constructor(private val context: Context) {
             loadedModels[modelId] = loaded
             Log.d(TAG, "Model $modelId loaded successfully")
             return loaded
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Failed to load model $modelId", e)
             return null
         }
@@ -334,9 +334,9 @@ class PhiLocalService private constructor(private val context: Context) {
                         callback(null, AiUsage(error = "Empty response"))
                     }
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e(TAG, "Inference failed for $modelId", e)
-                callback(null, AiUsage(error = e.message))
+                callback(null, AiUsage(error = e.message ?: e.javaClass.simpleName))
             }
         }
     }
