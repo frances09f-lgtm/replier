@@ -884,7 +884,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             val tokensUsed = usage?.tokensUsed ?: 0
             val error = usage?.error
 
-            if (tokensUsed > 0) {
+            if (tokensUsed > 0 || error != null) {
                 ruleEngine.saveAiUsage(
                     modelType,
                     tokensUsed,
@@ -899,6 +899,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             if (!aiReply.isNullOrBlank()) {
                 deliverReply(aiReply, "phi_local", tokensUsed)
             } else {
+                if (error != null) Log.e(TAG, "Local reply failed for $sender: $error")
                 failAnalysis(attemptId)
             }
         }

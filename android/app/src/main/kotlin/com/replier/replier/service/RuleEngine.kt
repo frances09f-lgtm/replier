@@ -491,11 +491,15 @@ class RuleEngine(private val context: Context) {
     }
 
     fun getSelectedLocalModel(): String {
-        try {
+        val raw = try {
             val json = readSettingsJson()
-            if (json != "{}") return JSONObject(json).optString("selectedLocalModel", "llama_3_2_1b")
-        } catch (_: Exception) {}
-        return prefs.getString("selected_local_model", "llama_3_2_1b") ?: "llama_3_2_1b"
+            if (json != "{}") JSONObject(json).optString("selectedLocalModel", "llama_3_2_1b")
+            else prefs.getString("selected_local_model", "llama_3_2_1b") ?: "llama_3_2_1b"
+        } catch (_: Exception) {
+            prefs.getString("selected_local_model", "llama_3_2_1b") ?: "llama_3_2_1b"
+        }
+        // Qwen was removed in v20; any stored/unknown id falls back to Llama 3.2 1B
+        return if (raw == "llama_3_2_1b") raw else "llama_3_2_1b"
     }
 
     // ── Busy Mode ─────────────────────────────────────────────────────────
