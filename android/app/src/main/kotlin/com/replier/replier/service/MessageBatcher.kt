@@ -5,12 +5,12 @@ import android.os.Looper
 import android.util.Log
 
 /**
- * Buffers incoming messages per-sender and batches AI replies.
+ * Buffers incoming messages per-conversation and batches AI replies.
  *
  * When a message arrives that triggers AI fallback (no rule match),
- * it is added to a per-sender buffer. A timer is started using the
- * user's configured reply delay. If another message arrives from the
- * same sender before the timer fires, the timer is reset.
+ * it is added to a per-conversation buffer. A timer is started using the
+ * short collection window (separate from the user's reply delay). If another message arrives from the
+ * same conversation before the timer fires, the timer is reset.
  *
  * Once the timer fires (no new messages for the delay period),
  * all buffered messages for that sender are collected and sent
@@ -53,7 +53,8 @@ class MessageBatcher(private val mainHandler: Handler) {
         val latestShortcutId: String?,
         val latestTag: String?,
         val latestId: Int?,
-        val isGroupChat: Boolean
+        val isGroupChat: Boolean,
+        val analysisId: String,
     )
 
     // Per-sender pending messages
@@ -64,15 +65,19 @@ class MessageBatcher(private val mainHandler: Handler) {
 
     // Track the delay used per sender for the current batch
     private val batchDelays = mutableMapOf<String, Long>()
+    private val attemptIds = mutableMapOf<String, String>()
+    @Synchronized fun getPendingAttemptId(conversationKey: String): String? = attemptIds[conversationKey]
 
     /**
-     * Add a message to the per-sender buffer and (re)start the batch timer.
+     * Add a message to the per-conversation buffer and (re)start the batch timer.
      *
      * @param delayMs The batch window in milliseconds (uses user's reply delay)
      * @param onBatchReady Called when the timer fires with all buffered messages
      */
     @Synchronized
     fun addMessage(
+        conversationKey: String,
+        analysisId: String,
         sender: String,
         message: String,
         notificationKey: String,
@@ -97,7 +102,13 @@ class MessageBatcher(private val mainHandler: Handler) {
         )
 
         // Add to buffer (skip if identical content already pending for this sender)
-        val batch = pendingBatches.getOrPut(sender) { mutableListOf() }
+        // A previous batch may have expired while incoming messages continued.
+        // Never transfer expired messages into a new analysis attempt.
+        if (attemptIds[conversationKey] != null && attemptIds[conversationKey] != analysisId) {
+            pendingBatches.remove(conversationKey)
+        }
+        attemptIds[conversationKey] = analysisId
+        val batch = pendingBatches.getOrPut(conversationKey) { mutableListOf() }
         if (batch.any { it.message.trim().equals(message.trim(), ignoreCase = true) }) {
             Log.d(TAG, "Pipeline event")
             // Still reset the timer so the batch waits for truly new messages
@@ -107,19 +118,19 @@ class MessageBatcher(private val mainHandler: Handler) {
         Log.d(TAG, "Pipeline event")
 
         // Cancel existing timer for this sender
-        batchTimers[sender]?.let { existingRunnable ->
+        batchTimers[conversationKey]?.let { existingRunnable ->
             mainHandler.removeCallbacks(existingRunnable)
             Log.d(TAG, "Pipeline event")
         }
 
         // Store the delay for this batch
-        batchDelays[sender] = delayMs
+        batchDelays[conversationKey] = delayMs
 
         // Start new timer
         val runnable = Runnable {
-            fireBatch(sender, onBatchReady)
+            fireBatch(conversationKey, onBatchReady)
         }
-        batchTimers[sender] = runnable
+        batchTimers[conversationKey] = runnable
         mainHandler.postDelayed(runnable, delayMs)
         Log.d(TAG, "Pipeline event")
     }
@@ -127,6 +138,7 @@ class MessageBatcher(private val mainHandler: Handler) {
     /**
      * Fire the batch for a sender: collect all messages, invoke callback, clear buffer.
      */
+    @Synchronized
     private fun fireBatch(sender: String, onBatchReady: (BatchReadyCallback) -> Unit) {
         val messages = pendingBatches.remove(sender) ?: return
         batchTimers.remove(sender)
@@ -144,16 +156,26 @@ class MessageBatcher(private val mainHandler: Handler) {
 
         onBatchReady(
             BatchReadyCallback(
-                sender = sender,
+                sender = latest.sender,
                 messages = messages,
                 latestNotificationKey = latestKey,
                 packageName = packageName,
                 latestShortcutId = latest.shortcutId,
                 latestTag = latest.sbnTag,
                 latestId = latest.sbnId,
-                isGroupChat = isGroupChat
+                isGroupChat = isGroupChat,
+                analysisId = attemptIds.remove(sender) ?: return,
             )
         )
+    }
+
+    /** Revoke buffered content when notification metadata becomes unsafe. */
+    @Synchronized
+    fun cancelConversation(conversationKey: String) {
+        batchTimers.remove(conversationKey)?.let { mainHandler.removeCallbacks(it) }
+        pendingBatches.remove(conversationKey)
+        batchDelays.remove(conversationKey)
+        attemptIds.remove(conversationKey)
     }
 
     /**
@@ -165,6 +187,7 @@ class MessageBatcher(private val mainHandler: Handler) {
         batchTimers.clear()
         pendingBatches.clear()
         batchDelays.clear()
+        attemptIds.clear()
         Log.d(TAG, "All batches cancelled")
     }
 

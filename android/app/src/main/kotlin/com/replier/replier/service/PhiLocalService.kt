@@ -232,7 +232,7 @@ class PhiLocalService private constructor(private val context: Context) {
         conversationHistory: List<ConversationHistory.ChatMessage> = emptyList(),
         callback: (String?, AiUsage?) -> Unit,
     ) {
-        getAiReplyBatch(modelId, senderName, listOf(incomingMessage), systemPrompt, conversationHistory, callback)
+        getAiReplyBatch(modelId, senderName, listOf(incomingMessage), systemPrompt, conversationHistory, callback = callback)
     }
 
     fun getAiReplyBatch(
@@ -241,10 +241,19 @@ class PhiLocalService private constructor(private val context: Context) {
         incomingMessages: List<String>,
         systemPrompt: String,
         conversationHistory: List<ConversationHistory.ChatMessage> = emptyList(),
+        shouldContinue: () -> Boolean = { true },
+        remainingBudgetMs: (() -> Long)? = null,
         callback: (String?, AiUsage?) -> Unit,
     ) {
+        val queuedAt = android.os.SystemClock.elapsedRealtime()
+        fun budget() = remainingBudgetMs?.invoke()
+            ?: (AnalysisAttempts.LIMIT_MS - (android.os.SystemClock.elapsedRealtime() - queuedAt)).coerceAtLeast(0)
         executor.execute {
             try {
+                if (!shouldContinue() || budget() <= 0) {
+                    callback(null, AiUsage(error = "Analysis expired before model load"))
+                    return@execute
+                }
                 if (!isModelAvailable(modelId)) {
                     callback(null, AiUsage(error = "Model not downloaded"))
                     return@execute
@@ -256,6 +265,10 @@ class PhiLocalService private constructor(private val context: Context) {
                     return@execute
                 }
 
+                if (!shouldContinue() || budget() <= 0) {
+                    callback(null, AiUsage(error = "Analysis expired during model load"))
+                    return@execute
+                }
                 val combinedMessage = incomingMessages.joinToString("\n") { it }
                 if (combinedMessage.isBlank()) {
                     callback(null, AiUsage(error = "Empty incoming message"))
@@ -268,7 +281,7 @@ class PhiLocalService private constructor(private val context: Context) {
                 Log.d(TAG, "Running inference for $modelId (prompt: ${prompt.length} chars)")
 
                 val result = runBlocking {
-                    withTimeoutOrNull(60_000L) {
+                    withTimeoutOrNull(budget().coerceAtLeast(1)) {
                         Llama.complete(
                             model = loadedModel,
                             prompt = prompt,
@@ -277,6 +290,12 @@ class PhiLocalService private constructor(private val context: Context) {
                     }
                 }
 
+                // llama JNI is not assumed cancellable. Never surface a late
+                // answer, even if it ignores coroutine cancellation.
+                if (!shouldContinue() || budget() <= 0) {
+                    callback(null, AiUsage(error = "Analysis timed out"))
+                    return@execute
+                }
                 if (result == null) {
                     Log.e(TAG, "Inference timed out for $modelId")
                     callback(null, AiUsage(error = "Inference timed out"))

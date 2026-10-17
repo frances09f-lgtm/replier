@@ -1,6 +1,6 @@
 # Replier
 
-Android reply assistant for WhatsApp and Instagram notifications, with keyword rules, optional AI, reply confirmation, logs and notes. Latest published release: **v18 / 1.0.18+18**. Cloudflare Workers AI is optional in this release; live Cloudflare inference still needs a configured user token and a phone test.
+Android reply assistant for WhatsApp and Instagram notifications, with keyword rules, optional AI, reply confirmation, logs and notes. Current build: **v19 / 1.0.19+19**. Cloudflare Workers AI is optional in this release; live Cloudflare inference still needs a configured user token and a phone test.
 
 ## Install and first setup
 
@@ -25,7 +25,7 @@ A rule can send your words to another person. Review its text and recipients car
 
 **Confirm Before Reply** prompts you before each send. A confirmation left unanswered for 15 seconds is cancelled, not auto-sent. Old versions behaved differently; use the current release.
 
-The supported sending path is the messaging app's Android notification inline reply. **Accessibility sending is disabled** because that route cannot reliably verify the recipient. Granting Accessibility cannot bypass this restriction. If inline reply is unavailable, reply manually in the messaging app.
+The only supported sending path is the messaging app's Android notification inline reply. **This version contains no Accessibility service** and does not request Accessibility access. If inline reply is unavailable, reply manually in the messaging app. Disable Accessibility access for previous Replier installations as described above; legacy-install conflict checks are retained.
 
 ## Optional AI setup
 
@@ -44,6 +44,10 @@ The supported sending path is the messaging app's Android notification inline re
 Provider keys are secrets. They are stored encrypted on Android and excluded from settings backups, not bundled in the APK. Account IDs and model names identify configuration; they are not passwords. No shared provider key/token is included here.
 
 Cloud AI sends message text and the configured context to the selected provider. Review this before enabling it for private conversations. Provider availability, quotas and pricing can change; verify them in your provider account. Do not interpret a model dropdown or displayed budget as unlimited free replies.
+
+### v19 safety update
+
+Automatic replies now require confirmed one-to-one notification metadata and the original stable conversation/app identity. Groups and uncertain chats are skipped, including at delayed-send revalidation; incomplete app metadata can also cause genuine direct chats to be skipped. Analysis has a 100-second overall deadline with an animated countdown; expired results cannot schedule a reply. The unused Accessibility service is removed. Current models/providers and the existing dashboard layout are preserved. Real-phone notification and inference behavior still needs testing.
 
 ### Cloudflare in v18
 

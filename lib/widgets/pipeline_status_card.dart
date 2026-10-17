@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/pipeline_status_provider.dart';
+import '../providers/analysis_status_provider.dart';
+import 'analysis_countdown_card.dart';
 
 /// Single persistent card that animates between pipeline stages.
 /// Uses AnimatedSwitcher for content cross-fade and AnimatedContainer
@@ -47,7 +49,14 @@ class PipelineStatusCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final analyses = ref.watch(analysisStatusProvider);
     final status = ref.watch(pipelineStatusProvider);
+    if (analyses.isNotEmpty) {
+      return Column(
+          children: analyses
+              .map((a) => AnalysisCountdownCard(key: ValueKey(a.id), status: a))
+              .toList());
+    }
 
     // Keep the last known stage if idle to prevent sudden color changes during exit animation
     final stage = status.stage ?? PipelineStage.gotMessage;

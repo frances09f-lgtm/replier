@@ -24,15 +24,6 @@ class NotificationService {
     }
   }
 
-  /// Open accessibility settings
-  Future<void> openAccessibilitySettings() async {
-    try {
-      await _nativeChannel.invokeMethod('openAccessibilitySettings');
-    } catch (e) {
-      throw Exception('Failed to open accessibility settings: $e');
-    }
-  }
-
   /// Open battery optimization settings
   Future<void> openBatteryOptimizationSettings() async {
     try {
@@ -47,17 +38,6 @@ class NotificationService {
     try {
       final result =
           await _nativeChannel.invokeMethod('isNotificationListenerEnabled');
-      return result as bool;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Check if accessibility service is enabled
-  Future<bool> isAccessibilityServiceEnabled() async {
-    try {
-      final result =
-          await _nativeChannel.invokeMethod('isAccessibilityServiceEnabled');
       return result as bool;
     } catch (e) {
       return false;

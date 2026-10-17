@@ -85,9 +85,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           const ListTile(
               leading: Icon(Icons.shield_outlined),
-              title: Text('Accessibility sending disabled'),
+              title: Text('Notification replies only'),
               subtitle: Text(
-                  'Replier only sends through a verified notification reply action. No accessibility access needed.')),
+                  'Replier only sends through a verified notification reply action. If no reply action is available, reply manually in the messaging app.')),
 
           _PermissionTile(
             title: 'Battery Optimization',
@@ -150,13 +150,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
 
-          SwitchListTile(
-            title: const Text('Ignore Group Chats'),
-            subtitle: const Text('Don\'t reply to group messages'),
-            value: settings.ignoreGroupChats,
-            onChanged: (_) {
-              ref.read(appSettingsProvider.notifier).toggleIgnoreGroupChats();
-            },
+          const ListTile(
+            leading: Icon(Icons.verified_user_outlined),
+            title: Text('One-to-one chats only'),
+            subtitle: Text(
+                'Group chats and chats without clear type or identity are always skipped.'),
           ),
 
           SwitchListTile(

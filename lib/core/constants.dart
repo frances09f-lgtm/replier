@@ -14,8 +14,6 @@ class AppConstants {
   // Method channel names
   static const String nativeChannel = 'com.replier.replier/native';
   static const String notificationChannel = 'com.replier.replier/notification';
-  static const String accessibilityChannel =
-      'com.replier.replier/accessibility';
 
   // Supported apps
   static const String whatsappPackage = 'com.whatsapp';

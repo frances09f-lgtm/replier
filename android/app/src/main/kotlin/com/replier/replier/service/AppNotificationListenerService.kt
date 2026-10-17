@@ -12,6 +12,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemClock
+import org.json.JSONArray
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -122,6 +124,44 @@ class AppNotificationListenerService : NotificationListenerService() {
     private lateinit var ruleEngine: RuleEngine
     private lateinit var messageBatcher: MessageBatcher
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val directChatGate = DirectChatGate()
+    private val analysisAttempts = AnalysisAttempts { SystemClock.elapsedRealtime() }
+    private val analysisEpoch = UUID.randomUUID().toString()
+    private var analysisRevision = 0L
+    private val analysisTimers = mutableMapOf<String, Runnable>()
+
+    // Accessed on the main thread. Full snapshots are revisioned so a lifecycle
+    // refresh cannot resurrect stale attempts after a newer terminal event.
+    fun analysisSnapshot(): String {
+        val records = analysisAttempts.snapshot()
+        return JSONObject().apply {
+            put("epoch", analysisEpoch)
+            put("revision", ++analysisRevision)
+            put("attempts", JSONArray().apply {
+                records.forEach { a -> put(JSONObject().apply {
+                    put("id", a.id); put("sender", a.sender); put("state", a.state)
+                    put("remainingMs", analysisAttempts.remaining(a.id))
+                    put("limitMs", AnalysisAttempts.LIMIT_MS)
+                    put("terminalRemainingMs", a.finished?.let {
+                        (AnalysisAttempts.TERMINAL_DISPLAY_MS - (SystemClock.elapsedRealtime() - it)).coerceAtLeast(0)
+                    } ?: 0)
+                }) }
+            })
+        }.toString()
+    }
+
+    private fun publishAnalysis() {
+        methodChannel?.invokeMethod("onAnalysisStatus", analysisSnapshot())
+    }
+
+    private fun failAnalysis(id: String) {
+        mainHandler.post {
+            analysisAttempts.complete(id, "failed")
+            analysisTimers.remove(id)?.let { mainHandler.removeCallbacks(it) }
+            publishAnalysis()
+        }
+    }
+
 
     private fun acquireWakeLock(tag: String, timeoutMs: Long): PowerManager.WakeLock? {
         return try {
@@ -161,6 +201,10 @@ class AppNotificationListenerService : NotificationListenerService() {
         sbnId: Int? = null,
         onBeforeSend: (() -> Unit)? = null,
     ) {
+        if (confirmedDirectTarget(key, packageName, shortcutId, sbnTag, sbnId) == null) {
+            notifyUnsafeChatSkipped()
+            return
+        }
         // Cancel any pending timer for this sender so multiple timers don't collide
         cancelScheduledReply(sender)
 
@@ -244,6 +288,11 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
         activeScheduledReplies.clear()
         messageBatcher.cancelAll()
+        directChatGate.clear()
+        analysisAttempts.cancelAll()
+        analysisTimers.values.forEach { mainHandler.removeCallbacks(it) }
+        analysisTimers.clear()
+        publishAnalysis()
         unregisterConfirmReceiver()
         instance = null
         Log.d(TAG, "AppNotificationListenerService destroyed")
@@ -265,7 +314,18 @@ class AppNotificationListenerService : NotificationListenerService() {
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
         val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
         val message = if (bigText.isNotEmpty()) bigText else text
-        val isGroupChat = isGroupChat(notification)
+        val chatKind = classifyChat(notification, packageName)
+        val target = chatTarget(sbn)
+        val revoked = directChatGate.record(target, chatKind)
+        revoked.forEach { cancelUnsafeConversation(it) }
+        if (chatKind != ChatTypePolicy.Kind.DIRECT || !target.stable) {
+            // No false-default for missing metadata. Group summaries are not
+            // individual conversations; ordinary Android notification bundles
+            // are NOT, by themselves, evidence of a messaging group.
+            Log.i(TAG, "Skipping auto reply: chat type=$chatKind, stable=${target.stable}")
+            return
+        }
+        val isGroupChat = false
 
         val sender = normalizeSenderName(title, packageName)
         Log.d(TAG, "Pipeline event")
@@ -331,11 +391,8 @@ class AppNotificationListenerService : NotificationListenerService() {
             return
         }
 
-        // Group chat filter
-        if (ruleEngine.shouldIgnoreGroupChats() && isGroupChat) {
-            Log.d(TAG, "Skipping: group chat ignored")
-            return
-        }
+        // Direct-only safety policy is unconditional. Legacy ignoreGroupChats
+        // preferences cannot enable automatic group or unclassified replies.
 
         // Self-reply guard
         if (ruleEngine.isSelfSentMessage(message, sender)) {
@@ -415,10 +472,28 @@ class AppNotificationListenerService : NotificationListenerService() {
                 val batchWindowMs = 2000L
                 Log.d(TAG, "No rule matched. Buffering for AI batch reply (model: $modelType, batchWindow: ${batchWindowMs}ms)...")
 
-                // Emit "analysing" immediately so the UI shows the processing state
-                notifyPipelineStatus("analysing", sender)
+                // Start the full analysis budget before batching/queueing/loading.
+                val conversation = AnalysisAttempts.conversationKey(
+                    packageName, getShortcutId(sbn), sbn.tag, sbn.id, sbn.key)
+                val bufferedId = messageBatcher.getPendingAttemptId(conversation)
+                val attemptId = if (bufferedId != null && analysisAttempts.isActive(bufferedId)) {
+                    bufferedId
+                } else {
+                    val attempt = analysisAttempts.begin(conversation, sender)
+                    val timeout = Runnable {
+                        analysisAttempts.expireDue()
+                        analysisTimers.remove(attempt.id)
+                        publishAnalysis()
+                    }
+                    analysisTimers[attempt.id] = timeout
+                    mainHandler.postDelayed(timeout, analysisAttempts.remaining(attempt.id))
+                    attempt.id
+                }
+                publishAnalysis()
 
                 messageBatcher.addMessage(
+                    conversationKey = conversation,
+                    analysisId = attemptId,
                     sender = sender,
                     message = message,
                     notificationKey = sbn.key,
@@ -528,29 +603,9 @@ class AppNotificationListenerService : NotificationListenerService() {
     ) {
         if(!ruleEngine.isMasterEnabled())return
         try {
-            var sbn = activeNotifications?.find { it.key == key }
-
-            // Guard: an exact key match implicitly belongs to the right package,
-            // but if the caller supplied the original package, enforce it so a
-            // recycled key can never leak a reply into another app.
-            if (sbn != null && expectedPackageName != null && sbn.packageName != expectedPackageName) {
-                Log.w(TAG, "Refusing to reply: notification $key is from ${sbn.packageName} but expected $expectedPackageName")
-                sbn = null
-            }
-
-            // If the original notification is gone or has no reply action, only
-            // fall back to the SAME conversation (same package + stable identity).
-            // Never fall back by display-name matching — that can hit the wrong chat.
-            if (sbn == null || !hasReplyAction(sbn)) {
-                Log.d(TAG, "Pipeline event")
-                sbn = findSameConversationNotification(key, expectedPackageName, expectedShortcutId, expectedTag, expectedId)
-            }
-
+            val sbn = confirmedDirectTarget(key, expectedPackageName, expectedShortcutId, expectedTag, expectedId)
             if (sbn == null) {
-                Log.d(TAG, "Pipeline event")
-                mainHandler.post {
-                    methodChannel?.invokeMethod("onReplyFailed", "Original notification no longer active — skipped to avoid wrong recipient")
-                }
+                notifyUnsafeChatSkipped()
                 return
             }
 
@@ -580,6 +635,13 @@ class AppNotificationListenerService : NotificationListenerService() {
                             }
                         )
                         try {
+                            // Resolve again immediately before the irreversible PendingIntent.
+                            // If a repost changed type/identity, do not use the stale action.
+                            val latest = confirmedDirectTarget(key, expectedPackageName, expectedShortcutId, expectedTag, expectedId)
+                            if (latest == null || latest.key != sbn.key || latest.postTime != sbn.postTime) {
+                                notifyUnsafeChatSkipped()
+                                return
+                            }
                             action.actionIntent.send(applicationContext, 0, replyIntent)
                             ruleEngine.recordReplySent(sender, replyText)
                             Log.d(TAG, "Pipeline event")
@@ -621,6 +683,13 @@ class AppNotificationListenerService : NotificationListenerService() {
      * call the appropriate AI service with all messages, then send a single reply.
      */
     private fun sendBatchedAiReply(batch: MessageBatcher.BatchReadyCallback, modelType: String) {
+        val attemptId = batch.analysisId
+        if (!analysisAttempts.isActive(attemptId)) return
+        if (batch.isGroupChat || confirmedDirectTarget(batch.latestNotificationKey, batch.packageName,
+                batch.latestShortcutId, batch.latestTag, batch.latestId) == null) {
+            failAnalysis(attemptId)
+            return
+        }
         val sender = batch.sender
         val messages = batch.messages.map { it.message }
         val rawHistory = ConversationHistory.getHistory(sender)
@@ -650,49 +719,69 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
 
         fun deliverReply(replyText: String, effectiveModelType: String, tokensUsed: Int) {
-            for (msg in messages) {
-                ConversationHistory.addMessage(sender, "user", msg)
-            }
-            ConversationHistory.addMessage(sender, "assistant", replyText)
+            // Serialize the last deadline check with timeout and scheduling. JNI
+            // may finish after cancellation; only this claim can permit a send.
+            mainHandler.post {
+                if (!ruleEngine.isMasterEnabled()) { failAnalysis(attemptId); return@post }
+                if (confirmedDirectTarget(batch.latestNotificationKey, batch.packageName,
+                        batch.latestShortcutId, batch.latestTag, batch.latestId) == null) {
+                    failAnalysis(attemptId)
+                    return@post
+                }
+                if (!analysisAttempts.complete(attemptId, "ready")) { publishAnalysis(); return@post }
+                analysisTimers.remove(attemptId)?.let { mainHandler.removeCallbacks(it) }
+                publishAnalysis()
+                for (msg in messages) {
+                    ConversationHistory.addMessage(sender, "user", msg)
+                }
+                ConversationHistory.addMessage(sender, "assistant", replyText)
 
-            // Emit "reply_ready" before scheduling the send
-            notifyPipelineStatus("reply_ready", sender)
+                // Emit "reply_ready" before scheduling the send
+                notifyPipelineStatus("reply_ready", sender)
 
-            // Confirm before reply: show approval notification instead of sending directly.
-            // Countdown starts only when the send is actually scheduled (approval or timeout).
-            if (ruleEngine.isConfirmBeforeReplyEnabled()) {
-                showConfirmationNotification(
-                    notificationKey = batch.latestNotificationKey,
-                    sender = sender,
-                    replyText = replyText,
-                    originalMessage = batchOriginalMessage,
-                    isAiReply = true,
-                    aiModelType = effectiveModelType,
-                    packageName = batch.packageName,
-                    shortcutId = batch.latestShortcutId,
-                    sbnTag = batch.latestTag,
-                    sbnId = batch.latestId,
-                )
-            } else {
-                // Apply the user's configured reply delay on top of the batch window
-                scheduleDelayedReply(
-                    key = batch.latestNotificationKey,
-                    sender = sender,
-                    replyText = replyText,
-                    isAiReply = true,
-                    aiModelType = effectiveModelType,
-                    originalMessage = batchOriginalMessage,
-                    packageName = batch.packageName,
-                    shortcutId = batch.latestShortcutId,
-                    sbnTag = batch.latestTag,
-                    sbnId = batch.latestId,
-                )
+                // Confirm before reply: show approval notification instead of sending directly.
+                // Countdown starts only when the send is actually scheduled (approval or timeout).
+                if (ruleEngine.isConfirmBeforeReplyEnabled()) {
+                    showConfirmationNotification(
+                        notificationKey = batch.latestNotificationKey,
+                        sender = sender,
+                        replyText = replyText,
+                        originalMessage = batchOriginalMessage,
+                        isAiReply = true,
+                        aiModelType = effectiveModelType,
+                        packageName = batch.packageName,
+                        shortcutId = batch.latestShortcutId,
+                        sbnTag = batch.latestTag,
+                        sbnId = batch.latestId,
+                    )
+                } else {
+                    // Apply the user's configured reply delay on top of the batch window
+                    scheduleDelayedReply(
+                        key = batch.latestNotificationKey,
+                        sender = sender,
+                        replyText = replyText,
+                        isAiReply = true,
+                        aiModelType = effectiveModelType,
+                        originalMessage = batchOriginalMessage,
+                        packageName = batch.packageName,
+                        shortcutId = batch.latestShortcutId,
+                        sbnTag = batch.latestTag,
+                        sbnId = batch.latestId,
+                    )
+                }
             }
         }
 
         fun tryLocalFallback(cloudError: String?) {
+            if (!analysisAttempts.isActive(attemptId)) return
+            if (confirmedDirectTarget(batch.latestNotificationKey, batch.packageName,
+                    batch.latestShortcutId, batch.latestTag, batch.latestId) == null) {
+                failAnalysis(attemptId)
+                return
+            }
             if (!ruleEngine.isFallbackToLocalEnabled()) {
                 Log.w(TAG, "Local fallback is disabled in settings. Skipping reply for $sender")
+                failAnalysis(attemptId)
                 return
             }
 
@@ -704,9 +793,7 @@ class AppNotificationListenerService : NotificationListenerService() {
                 Log.e(TAG, errMsg)
                 ruleEngine.saveAiUsage(modelType, 0, 0, 0, 0, errMsg)
                 notifyAiUsage(0, 0, 0, 0, errMsg)
-                mainHandler.post {
-                    methodChannel?.invokeMethod("onReplyFailed", errMsg)
-                }
+                failAnalysis(attemptId)
                 return
             }
 
@@ -716,12 +803,16 @@ class AppNotificationListenerService : NotificationListenerService() {
                 senderName = sender,
                 incomingMessages = messages,
                 systemPrompt = finalSystemPrompt,
-                conversationHistory = history
+                conversationHistory = history,
+                shouldContinue = { analysisAttempts.isActive(attemptId) },
+                remainingBudgetMs = { analysisAttempts.remaining(attemptId) },
             ) { localReply, localUsage ->
+                if (!analysisAttempts.isActive(attemptId)) return@getAiReplyBatch
                 if (!localReply.isNullOrBlank()) {
                     Log.i(TAG, "Local model fallback succeeded for $sender! Generated reply: '$localReply'")
                     deliverReply(localReply, "phi_local", localUsage?.tokensUsed ?: 0)
                 } else {
+                    failAnalysis(attemptId)
                     val localErr = "Local fallback also failed: ${localUsage?.error ?: "Empty response"}"
                     Log.e(TAG, localErr)
                     ruleEngine.saveAiUsage("phi_local", 0, 0, 0, 0, localErr)
@@ -730,7 +821,8 @@ class AppNotificationListenerService : NotificationListenerService() {
             }
         }
 
-        val cloudCallbackAdapter: (String?, PhiLocalService.AiUsage?) -> Unit = { aiReply, usage ->
+        val cloudCallbackAdapter: (String?, PhiLocalService.AiUsage?) -> Unit = cloudCallback@{ aiReply, usage ->
+            if (!analysisAttempts.isActive(attemptId)) return@cloudCallback
             val tokensUsed = usage?.tokensUsed ?: 0
             val error = usage?.error
             val isLimitReached = usage?.isLimitReached ?: false
@@ -766,7 +858,8 @@ class AppNotificationListenerService : NotificationListenerService() {
             }
         }
 
-        val localCallbackAdapter: (String?, PhiLocalService.AiUsage?) -> Unit = { aiReply, usage ->
+        val localCallbackAdapter: (String?, PhiLocalService.AiUsage?) -> Unit = localCallback@{ aiReply, usage ->
+            if (!analysisAttempts.isActive(attemptId)) return@localCallback
             val tokensUsed = usage?.tokensUsed ?: 0
             val error = usage?.error
 
@@ -785,7 +878,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             if (!aiReply.isNullOrBlank()) {
                 deliverReply(aiReply, "phi_local", tokensUsed)
             } else {
-                Log.d(TAG, "Pipeline event")
+                failAnalysis(attemptId)
             }
         }
 
@@ -796,6 +889,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             return
         }
 
+        try {
         when (modelType) {
             "groq_api" -> {
                 val apiKey = ruleEngine.getGroqApiKey()
@@ -863,9 +957,14 @@ class AppNotificationListenerService : NotificationListenerService() {
                     incomingMessages = messages,
                     systemPrompt = finalSystemPrompt,
                     conversationHistory = history,
+                    shouldContinue = { analysisAttempts.isActive(attemptId) },
+                    remainingBudgetMs = { analysisAttempts.remaining(attemptId) },
                     callback = localCallbackAdapter
                 )
             }
+        }
+        } catch (e: Exception) {
+            failAnalysis(attemptId)
         }
     }
 
@@ -1032,8 +1131,93 @@ class AppNotificationListenerService : NotificationListenerService() {
     // Simple 4-tuple — avoids pulling in extra dependencies for an internal helper.
     private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
-    private fun isGroupChat(notification: Notification) =
-        notification.extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
+    /** Extract only platform metadata. Neither title substrings, a single visible
+     * sender nor notification.group/groupKey can establish a one-to-one chat. */
+    private fun classifyChat(notification: Notification, pkg: String): ChatTypePolicy.Kind {
+        return try {
+            val extras = notification.extras
+            val rawGroup = if (extras.containsKey(Notification.EXTRA_IS_GROUP_CONVERSATION)) {
+                extras.get(Notification.EXTRA_IS_GROUP_CONVERSATION)
+            } else null
+            if (rawGroup != null && rawGroup !is Boolean) return ChatTypePolicy.Kind.UNKNOWN
+            val explicitGroup = rawGroup as? Boolean
+            val style = Notification.Builder.recoverBuilder(this, notification).style as? Notification.MessagingStyle
+            val styleGroup = if (android.os.Build.VERSION.SDK_INT >= 28) style?.isGroupConversation else explicitGroup
+            val senders = if (android.os.Build.VERSION.SDK_INT >= 28) {
+                style?.messages.orEmpty().mapNotNull { message ->
+                    message.senderPerson?.let { person ->
+                        person.key?.takeIf { it.isNotBlank() } ?: person.uri?.takeIf { it.isNotBlank() }
+                    }
+                }.distinct().size
+            } else 0
+            ChatTypePolicy.classify(ChatTypePolicy.Evidence(
+                supportedPackage = pkg in supportedPackages,
+                summary = notification.flags and Notification.FLAG_GROUP_SUMMARY != 0,
+                explicitGroup = explicitGroup,
+                messagingStyle = style != null,
+                styleGroup = styleGroup,
+                hasConversationTitle = !extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE).isNullOrBlank(),
+                distinctSenders = senders,
+            ))
+        } catch (_: Exception) { ChatTypePolicy.Kind.UNKNOWN }
+    }
+
+    private fun chatTarget(sbn: StatusBarNotification) = DirectChatGate.Target(
+        sbn.packageName, sbn.key, getShortcutId(sbn), sbn.tag, sbn.id, sbn.userId)
+
+    private fun cancelUnsafeConversation(target: DirectChatGate.Target) {
+        val conversation = AnalysisAttempts.conversationKey(target.packageName, target.shortcut,
+            target.tag, target.id, target.key)
+        messageBatcher.cancelConversation(conversation)
+        analysisAttempts.snapshot().filter { it.conversation == conversation && it.state == "analysing" }
+            .forEach { attempt ->
+                analysisAttempts.complete(attempt.id, "canceled")
+                analysisTimers.remove(attempt.id)?.let { mainHandler.removeCallbacks(it) }
+            }
+        activeScheduledReplies.entries.filter { (_, value) ->
+            value.notificationKey == target.key || (value.packageName == target.packageName &&
+                ((target.shortcut != null && value.shortcutId == target.shortcut) ||
+                 (target.shortcut == null && target.tag != null && value.sbnTag == target.tag && value.sbnId == target.id)))
+        }.forEach { (sender, _) -> cancelScheduledReply(sender) }
+        pendingReplies.entries.filter { (_, value) ->
+            value.notificationKey == target.key || (value.packageName == target.packageName &&
+                ((target.shortcut != null && value.shortcutId == target.shortcut) ||
+                 (target.shortcut == null && target.tag != null && value.sbnTag == target.tag && value.sbnId == target.id)))
+        }.forEach { (id, _) ->
+            pendingReplies.remove(id)
+            getSystemService(NotificationManager::class.java).cancel(CONFIRM_NOTIFICATION_ID_BASE + id.hashCode())
+        }
+        publishAnalysis()
+    }
+
+    /** Revalidate original admission and a currently posted direct chat before
+     * inference, scheduling, confirmation and sending. No name-based fallback. */
+    private fun confirmedDirectTarget(key: String, pkg: String?, shortcut: String?, tag: String?, id: Int?): StatusBarNotification? {
+        return try {
+            val origin = directChatGate.original(key) ?: return null
+            if (pkg != null && origin.packageName != pkg) return null
+            if (shortcut != null && origin.shortcut != shortcut) return null
+            if (tag != null && origin.tag != tag) return null
+            if (id != null && origin.id != id) return null
+            val active = activeNotifications ?: return null
+            // Conflicting live notifications for the original identity must
+            // suppress sending, not be silently filtered out as candidates.
+            val sameIdentity = active.filter { origin.sameConversation(chatTarget(it)) }
+            if (sameIdentity.any { classifyChat(it.notification, it.packageName) != ChatTypePolicy.Kind.DIRECT }) return null
+            val candidates = sameIdentity.filter { candidate ->
+                directChatGate.permits(key, chatTarget(candidate), classifyChat(candidate.notification, candidate.packageName)) &&
+                    hasReplyAction(candidate)
+            }
+            // Ambiguous fallback is not safe even if the notifications share an ID.
+            candidates.firstOrNull { it.key == key } ?: candidates.singleOrNull()
+        } catch (_: Exception) { null }
+    }
+
+    private fun notifyUnsafeChatSkipped() {
+        mainHandler.post {
+            methodChannel?.invokeMethod("onReplyFailed", "Skipped: one-to-one chat and original conversation could not be confirmed")
+        }
+    }
 
     /**
      * Normalize sender name for consistent batching.
@@ -1187,6 +1371,10 @@ class AppNotificationListenerService : NotificationListenerService() {
         sbnTag: String? = null,
         sbnId: Int? = null,
     ) {
+        if (confirmedDirectTarget(notificationKey, packageName, shortcutId, sbnTag, sbnId) == null) {
+            notifyUnsafeChatSkipped()
+            return
+        }
         val confirmId = UUID.randomUUID().toString()
         val notifId = CONFIRM_NOTIFICATION_ID_BASE + confirmId.hashCode()
 

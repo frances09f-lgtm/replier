@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Auto Reply Assistant</string>
-    <string name="accessibility_service_description">This service helps Auto Reply Assistant automatically reply to messages from WhatsApp and Instagram. It reads notification content and sends replies based on your custom rules.</string>
 </resources>

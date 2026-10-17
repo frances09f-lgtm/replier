@@ -53,10 +53,6 @@ class MainActivity : FlutterActivity() {
                     startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
                     result.success(null)
                 }
-                "openAccessibilitySettings" -> {
-                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                    result.success(null)
-                }
                 "openBatteryOptimizationSettings" -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         startActivity(
@@ -69,8 +65,6 @@ class MainActivity : FlutterActivity() {
                 }
                 "isNotificationListenerEnabled" ->
                     result.success(isNotificationListenerEnabled())
-                "isAccessibilityServiceEnabled" ->
-                    result.success(isAccessibilityServiceEnabled())
                 "isBatteryOptimizationDisabled" ->
                     result.success(isBatteryOptimizationDisabled())
                 "openUrl" -> {
@@ -380,6 +374,9 @@ class MainActivity : FlutterActivity() {
                         result.error("INVALID_ARGUMENTS", "Missing key or replyText", null)
                     }
                 }
+                "getAnalysisStatus" -> result.success(
+                    AppNotificationListenerService.getInstance()?.analysisSnapshot()
+                        ?: "{\"epoch\":\"offline\",\"revision\":0,\"attempts\":[]}")
                 "getAiUsage" -> {
                     val usage = ruleEngine.getAiUsage()
                     result.success(usage)
@@ -400,13 +397,6 @@ class MainActivity : FlutterActivity() {
     private fun isNotificationListenerEnabled(): Boolean {
         val enabled = Settings.Secure.getString(
             contentResolver, "enabled_notification_listeners"
-        )
-        return enabled?.contains(packageName) ?: false
-    }
-
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        val enabled = Settings.Secure.getString(
-            contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         )
         return enabled?.contains(packageName) ?: false
     }

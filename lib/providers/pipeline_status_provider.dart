@@ -67,6 +67,16 @@ class PipelineStatusNotifier extends StateNotifier<PipelineStatusData> {
 
   void _onPipelineStatus(Map<String, dynamic> data) {
     final stageStr = data['state'] as String? ?? '';
+    if (stageStr == 'analysis_managed') {
+      if (state.stage == PipelineStage.gotMessage ||
+          state.stage == PipelineStage.analysing) {
+        _queue.clear();
+        _cancelTimers();
+        state = const PipelineStatusData();
+        _processing = false;
+      }
+      return;
+    }
     final sender = data['sender'] as String? ?? '';
 
     final type = switch (stageStr) {

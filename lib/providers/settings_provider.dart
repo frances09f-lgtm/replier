@@ -324,7 +324,6 @@ class PermissionStatusNotifier extends StateNotifier<Map<String, bool>> {
   PermissionStatusNotifier(this._notificationService)
       : super({
           'notificationListener': false,
-          'accessibilityService': false,
           'batteryOptimization': false,
         }) {
     _checkPermissions();
@@ -333,8 +332,6 @@ class PermissionStatusNotifier extends StateNotifier<Map<String, bool>> {
   Future<void> _checkPermissions() async {
     final notificationListener =
         await _notificationService.isNotificationListenerEnabled();
-    final accessibilityService =
-        await _notificationService.isAccessibilityServiceEnabled();
     final batteryOptimization =
         await _notificationService.isBatteryOptimizationDisabled();
     final postNotification =
@@ -342,7 +339,6 @@ class PermissionStatusNotifier extends StateNotifier<Map<String, bool>> {
 
     state = {
       'notificationListener': notificationListener,
-      'accessibilityService': accessibilityService,
       'batteryOptimization': batteryOptimization,
       'postNotification': postNotification,
     };
@@ -354,12 +350,6 @@ class PermissionStatusNotifier extends StateNotifier<Map<String, bool>> {
 
   Future<void> openNotificationListenerSettings() async {
     await _notificationService.openNotificationListenerSettings();
-    await Future.delayed(const Duration(seconds: 2));
-    await refreshPermissions();
-  }
-
-  Future<void> openAccessibilitySettings() async {
-    await _notificationService.openAccessibilitySettings();
     await Future.delayed(const Duration(seconds: 2));
     await refreshPermissions();
   }

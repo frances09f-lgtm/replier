@@ -32,6 +32,7 @@ class AutoReplyService {
 
   /// Callback for pipeline status events (got_message, analysing, reply_ready)
   static Function(Map<String, dynamic>)? onPipelineStatus;
+  static Function(Map<String, dynamic>)? onAnalysisStatus;
 
   /// Callback for reply scheduled (countdown) — multiple listeners supported
   static final List<Function(Map<String, dynamic>)> _onReplyScheduledListeners =
@@ -80,6 +81,16 @@ class AutoReplyService {
           onPipelineStatus?.call(data);
         }
         break;
+      case 'onAnalysisStatus':
+        if (call.arguments != null) {
+          final data =
+              json.decode(call.arguments as String) as Map<String, dynamic>;
+          onAnalysisStatus?.call(data);
+          // The correlated analysis display owns these states. Do not let an
+          // unrelated global reply-completed callback clear another attempt.
+          onPipelineStatus?.call({'state': 'analysis_managed'});
+        }
+        break;
       case 'onAiUsageUpdate':
         if (call.arguments != null) {
           final usageData =
@@ -107,7 +118,6 @@ class AutoReplyService {
         }
         break;
       case 'onNotificationRemoved':
-      case 'useAccessibilityService':
         break;
     }
     return null;
