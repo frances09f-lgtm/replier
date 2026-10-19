@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../update/app_update.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,6 +84,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 .requestPostNotificationPermission(),
           ),
 
+          ListTile(
+            leading: const Icon(Icons.system_update_alt),
+            title: const Text('Check for updates'),
+            subtitle: const Text('Get the latest Replier release'),
+            onTap: () => checkUpdateManually(context),
+          ),
           const ListTile(
               leading: Icon(Icons.shield_outlined),
               title: Text('Notification replies only'),
