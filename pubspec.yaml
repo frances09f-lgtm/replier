@@ -1,12 +1,14 @@
 name: replier
 description: A Flutter application that automatically replies to notifications from supported apps.
 publish_to: 'none'
-version: 1.0.19+19
+version: 1.0.20+20
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
 dependencies:
+  http: ^1.2.0
+  shared_preferences: ^2.3.0
   flutter:
     sdk: flutter
   

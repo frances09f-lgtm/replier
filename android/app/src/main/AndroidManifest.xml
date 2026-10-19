@@ -21,6 +21,7 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"
         tools:ignore="ExactAlarm" />
 
+        <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
         android:label="Auto Reply Assistant"
         android:name="${applicationName}"
@@ -88,5 +89,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+            <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.ambi.replier.updateprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

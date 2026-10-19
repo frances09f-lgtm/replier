@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'update/app_update.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/hive_config.dart';
 import 'core/injection_container.dart';
@@ -57,6 +58,7 @@ class MyApp extends ConsumerWidget {
     const primaryColor = Color(0xFF4F46E5); // Modern Deep Indigo
 
     return MaterialApp(
+      navigatorKey: appNavigatorKey,
       title: 'Auto Reply Assistant',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

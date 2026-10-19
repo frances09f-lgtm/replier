@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../update/app_update.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../core/default_rules.dart';
@@ -23,6 +24,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _initializeApp() async {
+    // In-app self-update: check the latest release in the background.
+    // ignore: unawaited_futures
+    checkForUpdateOnLaunch();
     const channel = MethodChannel(AppConstants.nativeChannel);
     final accepted = await channel.invokeMethod<bool>('consentStatus') ?? false;
     if (!accepted && mounted) {
