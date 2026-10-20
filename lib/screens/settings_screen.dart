@@ -84,17 +84,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 .requestPostNotificationPermission(),
           ),
 
-          ListTile(
-            leading: const Icon(Icons.system_update_alt),
-            title: const Text('Check for updates'),
-            subtitle: const Text('Get the latest Replier release'),
-            onTap: () => checkUpdateManually(context),
-          ),
-          const ListTile(
-              leading: Icon(Icons.shield_outlined),
-              title: Text('Notification replies only'),
-              subtitle: Text(
-                  'Replier only sends through a verified notification reply action. If no reply action is available, reply manually in the messaging app.')),
 
           _PermissionTile(
             title: 'Battery Optimization',
@@ -611,6 +600,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
               ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => checkUpdateManually(context),
+              icon: const Icon(Icons.system_update_alt),
+              label: const Text('Check for updates'),
             ),
           ),
         ],
