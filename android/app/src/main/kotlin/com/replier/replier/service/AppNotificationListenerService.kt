@@ -37,6 +37,8 @@ class AppNotificationListenerService : NotificationListenerService() {
     companion object {
         private const val TAG = "AppNotificationListener"
         private const val CONFIRM_NOTIFICATION_CHANNEL_ID = "confirm_reply_channel"
+        private const val REPLY_ERROR_CHANNEL_ID = "reply_error_channel"
+        private const val REPLY_ERROR_NOTIFICATION_ID = 977
         private const val CONFIRM_NOTIFICATION_ID_BASE = 9000
         private const val CONFIRM_TIMEOUT_MS = 15_000L
 
@@ -115,6 +117,11 @@ class AppNotificationListenerService : NotificationListenerService() {
      * would wrongly swallow fast follow-ups like "😄 Haa haa" 2s after our reply). */
     private val lastHandledIncoming = ConcurrentHashMap<String, Pair<String, Long>>()
     private val incomingDedupeWindowMs = 60_000L
+
+    // Notification-to-reply timing (spec: measure notification -> reply sent)
+    private val notificationArrivalTimes = ConcurrentHashMap<String, Long>()
+
+    private val maxChatbotContextChars = 600
 
     private val supportedPackages = listOf(
         "com.whatsapp",
@@ -303,6 +310,12 @@ class AppNotificationListenerService : NotificationListenerService() {
 
         val packageName = sbn.packageName
         if (!supportedPackages.contains(packageName)) return
+
+        notificationArrivalTimes[sbn.key] = SystemClock.elapsedRealtime()
+        if (notificationArrivalTimes.size > 100) {
+            val cutoff = SystemClock.elapsedRealtime() - 10 * 60_000L
+            notificationArrivalTimes.entries.removeIf { it.value < cutoff }
+        }
 
         pendingReplies.entries.filter { it.value.notificationKey==sbn.key }.forEach { (id, _)-> pendingReplies.remove(id);getSystemService(NotificationManager::class.java).cancel(CONFIRM_NOTIFICATION_ID_BASE+id.hashCode()) }
         activeScheduledReplies.entries.filter{it.value.notificationKey==sbn.key}.forEach{(sender,_)->cancelScheduledReply(sender)}
@@ -644,6 +657,11 @@ class AppNotificationListenerService : NotificationListenerService() {
                             }
                             action.actionIntent.send(applicationContext, 0, replyIntent)
                             ruleEngine.recordReplySent(sender, replyText)
+
+                            val arrivedAt = notificationArrivalTimes.remove(key)
+                            if (arrivedAt != null) {
+                                Log.d(TAG, "Notification-to-reply: ${SystemClock.elapsedRealtime() - arrivedAt} ms for $sender")
+                            }
                             Log.d(TAG, "Pipeline event")
                             mainHandler.post {
                                 val replyData = JSONObject().apply {
@@ -684,9 +702,14 @@ class AppNotificationListenerService : NotificationListenerService() {
      */
     private fun sendBatchedAiReply(batch: MessageBatcher.BatchReadyCallback, modelType: String) {
         val attemptId = batch.analysisId
-        if (!analysisAttempts.isActive(attemptId)) return
+        if (!analysisAttempts.isActive(attemptId)) {
+            notifyReplyError("Reply analysis expired before it could start")
+            return
+        }
+        notifyPipelineStatus("analysing", batch.sender)
         if (batch.isGroupChat || confirmedDirectTarget(batch.latestNotificationKey, batch.packageName,
                 batch.latestShortcutId, batch.latestTag, batch.latestId) == null) {
+            notifyReplyError("Reply skipped: conversation could not be confirmed as a one-to-one chat")
             failAnalysis(attemptId)
             return
         }
@@ -694,7 +717,12 @@ class AppNotificationListenerService : NotificationListenerService() {
         val messages = batch.messages.map { it.message }
         val rawHistory = ConversationHistory.getHistory(sender)
         val baseSystemPrompt = ruleEngine.getAiSystemPromptWithTraining()
-        val chatbotCtx = getChatbotContext()
+        val fullChatbotCtx = getChatbotContext()
+        val chatbotCtx = if (fullChatbotCtx.length > maxChatbotContextChars) {
+            fullChatbotCtx.takeLast(maxChatbotContextChars)
+        } else {
+            fullChatbotCtx
+        }
         val finalSystemPrompt = if (chatbotCtx.isNotEmpty()) {
             "$baseSystemPrompt\n\n---\nCHAT CONTEXT (The user told the chatbot this — use it for awareness but do NOT mention the chatbot):\n$chatbotCtx\n---"
         } else {
@@ -863,7 +891,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             val tokensUsed = usage?.tokensUsed ?: 0
             val error = usage?.error
 
-            if (tokensUsed > 0) {
+            if (tokensUsed > 0 || error != null) {
                 ruleEngine.saveAiUsage(
                     modelType,
                     tokensUsed,
@@ -878,6 +906,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             if (!aiReply.isNullOrBlank()) {
                 deliverReply(aiReply, "phi_local", tokensUsed)
             } else {
+                notifyReplyError("Local reply failed: ${error ?: "empty response"}")
                 failAnalysis(attemptId)
             }
         }
@@ -963,7 +992,8 @@ class AppNotificationListenerService : NotificationListenerService() {
                 )
             }
         }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            notifyReplyError("Reply pipeline error: ${e.message ?: e.javaClass.simpleName}")
             failAnalysis(attemptId)
         }
     }
@@ -1211,6 +1241,40 @@ class AppNotificationListenerService : NotificationListenerService() {
             // Ambiguous fallback is not safe even if the notifications share an ID.
             candidates.firstOrNull { it.key == key } ?: candidates.singleOrNull()
         } catch (_: Exception) { null }
+    }
+
+    private var replyErrorNotifiedAt = 0L
+
+    /** Post a real system notification when the reply pipeline fails, so failures are visible. */
+    private fun notifyReplyError(reason: String) {
+        Log.e(TAG, "Reply pipeline error: $reason")
+        mainHandler.post {
+            methodChannel?.invokeMethod("onReplyFailed", reason)
+        }
+        // Throttle to one notification per 30s to avoid spam
+        val nowMs = System.currentTimeMillis()
+        if (nowMs - replyErrorNotifiedAt < 30_000L) return
+        replyErrorNotifiedAt = nowMs
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val channel = android.app.NotificationChannel(
+                    REPLY_ERROR_CHANNEL_ID,
+                    "Reply errors",
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply { description = "Shows why an auto-reply failed" }
+                getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            }
+            val n = Notification.Builder(this, REPLY_ERROR_CHANNEL_ID)
+                .setContentTitle("Auto-reply failed")
+                .setContentText(reason)
+                .setStyle(Notification.BigTextStyle().bigText(reason))
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setAutoCancel(true)
+                .build()
+            getSystemService(NotificationManager::class.java).notify(REPLY_ERROR_NOTIFICATION_ID, n)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to post reply error notification", e)
+        }
     }
 
     private fun notifyUnsafeChatSkipped() {

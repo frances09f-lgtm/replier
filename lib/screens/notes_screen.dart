@@ -640,6 +640,7 @@ class _NoteCard extends ConsumerWidget {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: const Text('Note deleted'),
+                      duration: const Duration(seconds: 3),
                       action: SnackBarAction(
                         label: 'Undo',
                         onPressed: () {

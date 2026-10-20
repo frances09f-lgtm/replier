@@ -10,48 +10,19 @@ class CloudAiRequestBuilder {
         senderName.trim().isEmpty ? 'the user' : senderName.trim();
     final buffer = StringBuffer()
       ..writeln(
-        'You are the user replying on WhatsApp to $effectiveSender. '
-        'Sound like a real person, NOT an assistant.',
-      )
-      ..writeln();
-
-    // Defaults FIRST so user corrections below override them (recency wins).
-    buffer
-      ..writeln("the user's default style (use ONLY if nothing below matches):")
-      ..writeln(
-        '- Short mixed Hinglish/Marathi+English, casual. 1-10 words typical, max 15 words.',
-      )
-      ..writeln(
-        '- Match the incoming language (English, Marathi, or mixed Hinglish).',
-      )
-      ..writeln(
-        '- No full polite sentences, no "Sure! I\'d be happy", no explanations.',
-      )
-      ..writeln('- No emoji unless the incoming message has one.')
-      ..writeln();
+        'You are replying on WhatsApp to $effectiveSender as a real person. 1-15 words, casual.',
+      );
 
     final trimmedUserPrompt = userSystemPrompt.trim();
     if (trimmedUserPrompt.isNotEmpty) {
       buffer
-        ..writeln(
-            'How the user ACTUALLY replies — FOLLOW THIS STRICTLY, it overrides the defaults above:')
-        ..writeln(trimmedUserPrompt)
-        ..writeln();
+        ..writeln("Match the user's style - FOLLOW THIS STRICTLY:")
+        ..writeln(trimmedUserPrompt);
     }
 
-    buffer
-      ..writeln('Instructions:')
-      ..writeln(
-        '- Reply directly to $effectiveSender. Output ONLY the message reply text.',
-      )
-      ..writeln(
-        '- If a LEARNED RESPONSE PATTERNS example matches the incoming message topic, copy its style/wording closely.',
-      )
-      ..writeln("- Do NOT repeat or echo $effectiveSender's message.")
-      ..writeln(
-        "- Do NOT include role prefixes like 'Assistant:', 'AI:', or '$effectiveSender:'. "
-        'Output ONLY the message reply text.',
-      );
+    buffer.write(
+      "Match any LEARNED RESPONSE PATTERNS example's style closely. Output ONLY the reply text, no prefixes, no explanations.",
+    );
 
     return buffer.toString().trimRight();
   }

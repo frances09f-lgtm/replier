@@ -216,7 +216,7 @@ class AppSettings extends HiveObject {
   /// Format training examples into few-shot prompt for AI system instructions.
   /// Bad-corrections (most recent) are prioritized; capped to [maxExamples]
   /// so prompts stay small and fast.
-  String formatTrainingPrompt({int maxExamples = 12}) {
+  String formatTrainingPrompt({int maxExamples = 4}) {
     final examples = trainingExamples;
     if (examples.isEmpty) return '';
 

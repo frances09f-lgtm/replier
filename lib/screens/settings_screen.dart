@@ -437,26 +437,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                     selectedModelId:
                                         settings.selectedLocalModel,
                                   ),
-                                  const SizedBox(height: 8),
-                                  _ModelRadioTile(
-                                    value: 'qwen_2_5_1_5b',
-                                    groupValue: settings.selectedLocalModel,
-                                    title: settings.aiModelType == 'phi_local'
-                                        ? 'Qwen 2.5 1.5B Instruct'
-                                        : 'Qwen 2.5 1.5B Instruct (Fallback)',
-                                    subtitle:
-                                        '~980MB, best for multilingual & casual chats',
-                                    onTap: () {
-                                      ref
-                                          .read(appSettingsProvider.notifier)
-                                          .updateSelectedLocalModel(
-                                              'qwen_2_5_1_5b');
-                                    },
-                                    modelId: 'qwen_2_5_1_5b',
-                                    selectedModelId:
-                                        settings.selectedLocalModel,
-                                  ),
-                                  const SizedBox(height: 8),
                                 ],
                               ),
                             )

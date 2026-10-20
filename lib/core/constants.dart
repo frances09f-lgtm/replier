@@ -20,8 +20,8 @@ class AppConstants {
   static const String instagramPackage = 'com.instagram.android';
 
   // Default settings
-  static const int defaultMinReplyDelay = 1;
-  static const int defaultMaxReplyDelay = 10;
+  static const int defaultMinReplyDelay = 0;
+  static const int defaultMaxReplyDelay = 0;
   static const int maxReplyDelay = 300;
   static const bool defaultPreventDuplicateReplies = true;
   static const bool defaultIgnoreGroupChats = true;

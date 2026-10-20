@@ -313,13 +313,13 @@ class RuleEngine(private val context: Context) {
             if (json != "{}") {
                 val obj = JSONObject(json)
                 minSec = maxOf(obj.optInt("minReplyDelaySeconds", 0), 0)
-                maxSec = maxOf(obj.optInt("maxReplyDelaySeconds", 10), minSec)
+                maxSec = maxOf(obj.optInt("maxReplyDelaySeconds", 0), minSec)
                 val delay = if (minSec >= maxSec) minSec else Random.nextInt(minSec, maxSec + 1)
                 return delay * 1000L
             }
         } catch (_: Exception) {}
         val fallbackMin = maxOf(prefs.getInt(KEY_MIN_REPLY_DELAY_SECONDS, 0), 0)
-        val fallbackMax = maxOf(prefs.getInt(KEY_MAX_REPLY_DELAY_SECONDS, 10), fallbackMin)
+        val fallbackMax = maxOf(prefs.getInt(KEY_MAX_REPLY_DELAY_SECONDS, 0), fallbackMin)
         val delay = if (fallbackMin >= fallbackMax) fallbackMin else Random.nextInt(fallbackMin, fallbackMax + 1)
         return delay * 1000L
     }
@@ -491,11 +491,15 @@ class RuleEngine(private val context: Context) {
     }
 
     fun getSelectedLocalModel(): String {
-        try {
+        val raw = try {
             val json = readSettingsJson()
-            if (json != "{}") return JSONObject(json).optString("selectedLocalModel", "llama_3_2_1b")
-        } catch (_: Exception) {}
-        return prefs.getString("selected_local_model", "llama_3_2_1b") ?: "llama_3_2_1b"
+            if (json != "{}") JSONObject(json).optString("selectedLocalModel", "llama_3_2_1b")
+            else prefs.getString("selected_local_model", "llama_3_2_1b") ?: "llama_3_2_1b"
+        } catch (_: Exception) {
+            prefs.getString("selected_local_model", "llama_3_2_1b") ?: "llama_3_2_1b"
+        }
+        // Qwen was removed in v20; any stored/unknown id falls back to Llama 3.2 1B
+        return if (raw == "llama_3_2_1b") raw else "llama_3_2_1b"
     }
 
     // ── Busy Mode ─────────────────────────────────────────────────────────
@@ -555,7 +559,7 @@ class RuleEngine(private val context: Context) {
      * Mirrors Dart AppSettings.formatTrainingPrompt. Capped to [maxExamples]
      * most recent so prompts stay small. Handles JSON format + legacy ':::'.
      */
-    fun getTrainingPrompt(maxExamples: Int = 12): String {
+    fun getTrainingPrompt(maxExamples: Int = 4): String {
         val rawList = getTrainingExamplesRaw()
         if (rawList.isEmpty()) return ""
         data class Ex(val user: String, val reply: String, val note: String)
