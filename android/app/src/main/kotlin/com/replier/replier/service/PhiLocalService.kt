@@ -76,6 +76,7 @@ class PhiLocalService private constructor(private val context: Context) {
     private val loadedModels = ConcurrentHashMap<String, LlamaModel>()
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val preloadExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val queueWatchdogHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val loadLock = Any()
     private val downloadExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val downloadProgressMap = ConcurrentHashMap<String, Int>()
@@ -267,30 +268,50 @@ class PhiLocalService private constructor(private val context: Context) {
         val queuedAt = android.os.SystemClock.elapsedRealtime()
         fun budget() = remainingBudgetMs?.invoke()
             ?: (AnalysisAttempts.LIMIT_MS - (android.os.SystemClock.elapsedRealtime() - queuedAt)).coerceAtLeast(0)
+
+        // Single-flight callback + queue watchdog. The inference executor is
+        // single-threaded and llama JNI cannot be interrupted; if a previous
+        // call wedges inside native code, queued requests would wait forever
+        // with no callback (the "stuck, nothing happens" state). The watchdog
+        // fires the error callback if this request never STARTS within its
+        // budget, so the failure always surfaces instead of hanging silently.
+        val started = java.util.concurrent.atomic.AtomicBoolean(false)
+        val finished = java.util.concurrent.atomic.AtomicBoolean(false)
+        fun fireOnce(reply: String?, usage: AiUsage?) {
+            if (finished.compareAndSet(false, true)) callback(reply, usage)
+        }
+        queueWatchdogHandler.postDelayed({
+            if (started.compareAndSet(false, true)) {
+                android.util.Log.w(TAG, "Reply for $senderName never started within budget - inference executor stuck behind a hung native call")
+                fireOnce(null, AiUsage(error = "Local model busy: a previous reply never finished. Please reopen the app."))
+            }
+        }, budget().coerceAtLeast(1))
+
         executor.execute {
+            if (!started.compareAndSet(false, true)) return@execute
             try {
                 if (!shouldContinue() || budget() <= 0) {
-                    callback(null, AiUsage(error = "Analysis expired before model load"))
+                    fireOnce(null, AiUsage(error = "Analysis expired before model load"))
                     return@execute
                 }
                 if (!isModelAvailable(modelId)) {
-                    callback(null, AiUsage(error = "Model not downloaded"))
+                    fireOnce(null, AiUsage(error = "Model not downloaded"))
                     return@execute
                 }
 
                 val loadedModel = loadModel(modelId)
                 if (loadedModel == null) {
-                    callback(null, AiUsage(error = "Failed to load model"))
+                    fireOnce(null, AiUsage(error = "Failed to load model"))
                     return@execute
                 }
 
                 if (!shouldContinue() || budget() <= 0) {
-                    callback(null, AiUsage(error = "Analysis expired during model load"))
+                    fireOnce(null, AiUsage(error = "Analysis expired during model load"))
                     return@execute
                 }
                 val combinedMessage = incomingMessages.joinToString("\n") { it }
                 if (combinedMessage.isBlank()) {
-                    callback(null, AiUsage(error = "Empty incoming message"))
+                    fireOnce(null, AiUsage(error = "Empty incoming message"))
                     return@execute
                 }
 
@@ -312,12 +333,12 @@ class PhiLocalService private constructor(private val context: Context) {
                 // llama JNI is not assumed cancellable. Never surface a late
                 // answer, even if it ignores coroutine cancellation.
                 if (!shouldContinue() || budget() <= 0) {
-                    callback(null, AiUsage(error = "Analysis timed out"))
+                    fireOnce(null, AiUsage(error = "Analysis timed out"))
                     return@execute
                 }
                 if (result == null) {
                     Log.e(TAG, "Inference timed out for $modelId")
-                    callback(null, AiUsage(error = "Inference timed out"))
+                    fireOnce(null, AiUsage(error = "Inference timed out"))
                 } else {
                     val reply = result.text?.trim()
                     Log.d(TAG, "Raw inference result for $modelId: '${reply?.take(200) ?: "NULL"}'")
@@ -326,19 +347,19 @@ class PhiLocalService private constructor(private val context: Context) {
                         Log.d(TAG, "Inference complete for $modelId: ${result.tokensPerSecond} tok/s")
                         if (cleanReply.isNotBlank()) {
                             Log.d(TAG, "Local AI final reply ($modelId): '$cleanReply'")
-                            callback(cleanReply, AiUsage(tokensUsed = prompt.length / 4 + cleanReply.length / 4))
+                            fireOnce(cleanReply, AiUsage(tokensUsed = prompt.length / 4 + cleanReply.length / 4))
                         } else {
                             Log.e(TAG, "Clean reply is blank after postProcess for $modelId")
-                            callback(null, AiUsage(error = "Empty response after processing"))
+                            fireOnce(null, AiUsage(error = "Empty response after processing"))
                         }
                     } else {
                         Log.e(TAG, "Raw reply is null or empty for $modelId")
-                        callback(null, AiUsage(error = "Empty response"))
+                        fireOnce(null, AiUsage(error = "Empty response"))
                     }
                 }
             } catch (e: Throwable) {
                 Log.e(TAG, "Inference failed for $modelId", e)
-                callback(null, AiUsage(error = e.message ?: e.javaClass.simpleName))
+                fireOnce(null, AiUsage(error = e.message ?: e.javaClass.simpleName))
             }
         }
     }

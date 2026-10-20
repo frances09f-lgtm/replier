@@ -307,7 +307,18 @@ class AppNotificationListenerService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         super.onNotificationPosted(sbn)
+        // Never let a processing exception kill the listener silently: surface
+        // it through the standard failure path instead of dying with the
+        // status card stuck.
+        try {
+            processNotification(sbn)
+        } catch (t: Throwable) {
+            Log.e(TAG, "Notification processing crashed", t)
+            notifyReplyError("Reply pipeline crashed: ${t.message ?: t.javaClass.simpleName}")
+        }
+    }
 
+    private fun processNotification(sbn: StatusBarNotification) {
         val packageName = sbn.packageName
         if (!supportedPackages.contains(packageName)) return
 
@@ -429,9 +440,6 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
         lastHandledIncoming[incomingKey] = normalizedIncoming to now
 
-        // Emit "got_message" to Flutter UI
-        notifyPipelineStatus("got_message", sender)
-
         // Rule matching
         val rule = ruleEngine.findMatchingRule(message, sender = sender)
 
@@ -440,6 +448,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             val busyText = ruleEngine.getBusyReplyText()
             if (ruleEngine.isBusyModeActive() && busyText.isNotBlank()) {
                 Log.d(TAG, "Busy mode active, using busy reply: '$busyText'")
+                notifyPipelineStatus("got_message", sender)
                 ConversationHistory.addMessage(sender, "user", message)
                 if (ruleEngine.isConfirmBeforeReplyEnabled()) {
                     showConfirmationNotification(
@@ -484,6 +493,10 @@ class AppNotificationListenerService : NotificationListenerService() {
                 // Batch window: wait 2s for more messages before firing
                 val batchWindowMs = 2000L
                 Log.d(TAG, "No rule matched. Buffering for AI batch reply (model: $modelType, batchWindow: ${batchWindowMs}ms)...")
+
+                // Committed to an AI reply: only now tell the UI a message arrived,
+                // so silent skips above can never wedge the status card.
+                notifyPipelineStatus("got_message", sender)
 
                 // Start the full analysis budget before batching/queueing/loading.
                 val conversation = AnalysisAttempts.conversationKey(
@@ -533,7 +546,8 @@ class AppNotificationListenerService : NotificationListenerService() {
             ruleEngine.wasReplyRecentlySent(sender, replyText)
         ) return
 
-        // Emit "analysing" then "reply_ready" now that a rule match was found
+        // Emit the full stage sequence now that a rule match was found
+        notifyPipelineStatus("got_message", sender)
         notifyPipelineStatus("analysing", sender)
         notifyPipelineStatus("reply_ready", sender)
 

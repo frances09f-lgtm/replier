@@ -161,6 +161,19 @@ class PipelineStatusNotifier extends StateNotifier<PipelineStatusData> {
       _stageTimer = null;
       _processNext();
     });
+
+    // Staleness guard: a native terminal event can always be lost (process
+    // death, channel restart). Never leave a non-terminal stage wedged on
+    // screen - fall back to idle so the next message starts clean.
+    _stalenessTimer?.cancel();
+    _stalenessTimer = Timer(const Duration(seconds: 45), () {
+      if (!state.isIdle && state.stage != PipelineStage.sending) {
+        _queue.clear();
+        _cancelTimers();
+        state = const PipelineStatusData();
+        _processing = false;
+      }
+    });
   }
 
   /// Start the sending stage with a live countdown synchronized to wall-clock time.
