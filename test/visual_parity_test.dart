@@ -49,11 +49,17 @@ void main() {
       }
       await loader.load();
     }
-    final mi = FontLoader('MaterialIcons')
-      ..addFont(Future.value(ByteData.view(File(
-              '/home/sandbox/flutter-3.47.6/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf')
-          .readAsBytesSync().buffer)));
-    await mi.load();
+    // Load MaterialIcons from the local Flutter SDK (path differs per machine)
+    final flutterRoot = Platform.environment['FLUTTER_ROOT'] ??
+        File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.path;
+    final miFile = File(
+        '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
+    if (miFile.existsSync()) {
+      final mi = FontLoader('MaterialIcons')
+        ..addFont(
+            Future.value(ByteData.view(miFile.readAsBytesSync().buffer)));
+      await mi.load();
+    }
     final r = SettingsRepository();
     await r.updateSettings(r.getSettings().copyWith(
         masterEnabled: true,

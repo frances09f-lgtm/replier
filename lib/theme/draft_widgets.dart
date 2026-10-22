@@ -325,21 +325,27 @@ class DraftStat extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = DraftColors.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
       decoration: BoxDecoration(
         color: c.bg,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Column(
-        children: [
-          Text(value,
-              style: DraftText.display(26, c.tx)
-                  .copyWith(fontFeatures: const [])),
-          const SizedBox(height: 2),
-          Text(label,
-              textAlign: TextAlign.center,
-              style: DraftText.body(12, c.mut)),
-        ],
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(value,
+                  style: DraftText.display(26, c.tx)
+                      .copyWith(fontFeatures: const [])),
+              const SizedBox(height: 2),
+              Text(label,
+                  textAlign: TextAlign.center,
+                  style: DraftText.body(12, c.mut)),
+            ],
+          ),
+        ),
       ),
     );
   }
