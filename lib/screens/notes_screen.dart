@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../theme/draft_theme.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../models/note.dart';
@@ -44,45 +45,62 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
     final filteredCompleted = _filterNotes(completedNotes);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notes & Reminders'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.psychology_alt_outlined),
-            tooltip: 'Test Note Extraction',
-            onPressed: () => _showTestExtractionDialog(context),
-          ),
-          if (allNotes.isNotEmpty)
-            PopupMenuButton<String>(
-              onSelected: (val) {
-                if (val == 'clear_completed') {
-                  for (final n in completedNotes) {
-                    ref.read(notesProvider.notifier).deleteNote(n.id);
-                  }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Cleared completed notes')),
-                  );
-                } else if (val == 'clear_all') {
-                  _confirmClearAll(context);
-                }
-              },
-              itemBuilder: (ctx) => [
-                if (completedNotes.isNotEmpty)
-                  const PopupMenuItem(
-                    value: 'clear_completed',
-                    child: Text('Clear completed notes'),
-                  ),
-                const PopupMenuItem(
-                  value: 'clear_all',
-                  child: Text('Clear all notes',
-                      style: TextStyle(color: Colors.red)),
-                ),
-              ],
-            ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
-          child: TabBar(
+      appBar: null,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddNoteDialog(context),
+        icon: const Icon(Icons.add),
+        label: const Text('New Note'),
+      ),
+      body: Column(
+        children: [
+          Builder(builder: (context) {
+            final c = DraftColors.of(context);
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 6, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                      child: Text('Notes and reminders',
+                          style: DraftText.display(24, c.tx))),
+                  
+                            IconButton(
+                              icon: const Icon(Icons.psychology_alt_outlined),
+                              tooltip: 'Test Note Extraction',
+                              onPressed: () => _showTestExtractionDialog(context),
+                            ),
+                            if (allNotes.isNotEmpty)
+                              PopupMenuButton<String>(
+                                onSelected: (val) {
+                                  if (val == 'clear_completed') {
+                                    for (final n in completedNotes) {
+                                      ref.read(notesProvider.notifier).deleteNote(n.id);
+                                    }
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Cleared completed notes')),
+                                    );
+                                  } else if (val == 'clear_all') {
+                                    _confirmClearAll(context);
+                                  }
+                                },
+                                itemBuilder: (ctx) => [
+                                  if (completedNotes.isNotEmpty)
+                                    const PopupMenuItem(
+                                      value: 'clear_completed',
+                                      child: Text('Clear completed notes'),
+                                    ),
+                                  const PopupMenuItem(
+                                    value: 'clear_all',
+                                    child: Text('Clear all notes',
+                                        style: TextStyle(color: Colors.red)),
+                                  ),
+                                ],
+                              ),
+                          
+                ],
+              ),
+            );
+          }),
+TabBar(
             controller: _tabController,
             tabs: [
               Tab(
@@ -141,15 +159,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen>
               ),
             ],
           ),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddNoteDialog(context),
-        icon: const Icon(Icons.add),
-        label: const Text('New Note'),
-      ),
-      body: Column(
-        children: [
           // Search box
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),

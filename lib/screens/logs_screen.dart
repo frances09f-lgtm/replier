@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../legacy/history.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../theme/draft_theme.dart';
 import 'package:intl/intl.dart';
 import '../models/reply_log.dart';
 import '../providers/log_provider.dart';
@@ -17,42 +18,53 @@ class LogsScreen extends ConsumerWidget {
     final feedbackFilter = ref.watch(logFeedbackFilterProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reply Logs'),
-        actions: [
-          IconButton(
-              icon: const Icon(Icons.archive_outlined),
-              tooltip: "Previous Replier history",
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const PreviousHistory()))),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.filter_list),
-            onSelected: (value) {
-              ref.read(appFilterProvider.notifier).state =
-                  value == 'all' ? null : value;
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'all',
-                child: Text('All Apps'),
-              ),
-              const PopupMenuItem(
-                value: 'WhatsApp',
-                child: Text('WhatsApp'),
-              ),
-              const PopupMenuItem(
-                value: 'Instagram',
-                child: Text('Instagram'),
-              ),
-            ],
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: () => _clearLogs(context, ref, appFilter),
-          ),
-        ],
-      ),
+      appBar: null,
       body: Column(
+        children: [
+          Builder(builder: (context) {
+            final c = DraftColors.of(context);
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 6, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                      child: Text('Logs', style: DraftText.display(30, c.tx))),
+                  IconButton(
+                                icon: const Icon(Icons.archive_outlined),
+                                tooltip: "Previous Replier history",
+                                onPressed: () => Navigator.push(context,
+                                    MaterialPageRoute(builder: (_) => const PreviousHistory()))),
+                            PopupMenuButton<String>(
+                              icon: const Icon(Icons.filter_list),
+                              onSelected: (value) {
+                                ref.read(appFilterProvider.notifier).state =
+                                    value == 'all' ? null : value;
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'all',
+                                  child: Text('All Apps'),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'WhatsApp',
+                                  child: Text('WhatsApp'),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'Instagram',
+                                  child: Text('Instagram'),
+                                ),
+                              ],
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete),
+                              onPressed: () => _clearLogs(context, ref, appFilter),
+                            ),
+                ],
+              ),
+            );
+          }),
+          Expanded(
+            child: Column(
         children: [
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -99,8 +111,13 @@ class LogsScreen extends ConsumerWidget {
           ),
         ],
       ),
+          ),
+        ],
+      ),
     );
   }
+
+
 
   void _clearLogs(BuildContext context, WidgetRef ref, String? appFilter) {
     showDialog(

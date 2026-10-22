@@ -10,6 +10,8 @@ import '../providers/reply_countdown_provider.dart';
 import '../providers/ai_usage_provider.dart';
 import '../utils/ai_engine_display.dart';
 import '../widgets/pipeline_status_card.dart';
+import '../theme/draft_theme.dart';
+import '../theme/draft_widgets.dart';
 import 'rules_screen.dart';
 import 'logs_screen.dart';
 import 'settings_screen.dart';
@@ -19,204 +21,92 @@ import '../providers/note_provider.dart';
 
 /// Dashboard screen with master switch and quick-action navigation
 class DashboardScreen extends ConsumerWidget {
-  const DashboardScreen({super.key});
+  final void Function(int tab)? onGoToTab;
+  const DashboardScreen({super.key, this.onGoToTab});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsProvider);
     final stats = ref.watch(dashboardStatsProvider);
     final replyCountdown = ref.watch(replyCountdownProvider);
+    final c = DraftColors.of(context);
+
+    final apps = <String>[
+      if (settings.whatsappEnabled) 'WhatsApp',
+      if (settings.instagramEnabled) 'Instagram',
+    ];
+    final chips = <String>[
+      'Confirm Before Reply ${settings.confirmBeforeReply ? 'ON' : 'OFF'}',
+      if (settings.ignoreGroupChats) 'Groups ignored',
+    ];
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ChatScreen()),
-          );
-        },
-        child: const Icon(Icons.chat_bubble),
-      ),
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-            },
-          ),
-        ],
-      ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.read(logsProvider.notifier).refreshLogs();
           ref.read(rulesProvider.notifier).refreshRules();
           await ref.read(aiUsageProvider.notifier).loadUsage();
         },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Hero Engine Status Card
-              _buildHeroStatusCard(context, ref, settings),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(14, 6, 14, 24),
+          children: [
+            Text('Dashboard', style: DraftText.display(30, c.tx)),
+            const SizedBox(height: 10),
 
-              // Reply delay badge
-              if (settings.masterEnabled) ...[
-                const SizedBox(height: 12),
-                _buildReplyDelayBadge(context, settings, replyCountdown),
-              ],
+            // Master reply switch hero (draft centerpiece)
+            MasterSwitchCard(
+              on: settings.masterEnabled,
+              onChanged: (_) async {
+                try {
+                  await ref
+                      .read(appSettingsProvider.notifier)
+                      .toggleMasterEnabled();
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('$e')));
+                  }
+                }
+              },
+              statusText: settings.masterEnabled
+                  ? (apps.isEmpty
+                      ? 'Listening to notifications'
+                      : 'Listening to ${apps.join(', ')}')
+                  : 'Paused. Incoming messages get no reply.',
+              chips: chips,
+            ),
+            const SizedBox(height: 12),
 
-              // Pipeline status box — live real-time processing status
-              const PipelineStatusCard(),
+            // Live pipeline processing status
+            const PipelineStatusCard(),
 
-              // Schedule status badge
-              if (settings.scheduleEnabled) ...[
-                const SizedBox(height: 12),
-                _buildScheduleBadge(context, settings),
-              ],
-
-              // Confirm before reply badge
-              if (settings.confirmBeforeReply) ...[
-                const SizedBox(height: 12),
-                Card(
-                  color: Colors.amber.shade50,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: const BorderSide(color: Color(0xFFFCD34D)),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.shade100,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(Icons.shield_outlined,
-                              color: Colors.amber.shade900, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Safety Mode: Confirm Before Reply',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.amber.shade900,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'You will be asked to approve each reply',
-                                style: TextStyle(
-                                  color: Colors.amber.shade800,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 24),
-
-              // Statistics section
-              Text(
-                'Statistics',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-              ),
+            // Reply delay badge
+            if (settings.masterEnabled) ...[
               const SizedBox(height: 12),
-              _buildStatsGrid(context, ref, stats),
-              const SizedBox(height: 16),
-              _buildAiUsageSection(context, ref),
-              const SizedBox(height: 24),
-
-              // Quick actions
-              Text(
-                'Quick Actions',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
-                    ),
-              ),
-              const SizedBox(height: 12),
-
-              _NavigationCard(
-                title: 'Notes & Reminders',
-                subtitle: 'View meetings and captured notes',
-                icon: Icons.event_note_rounded,
-                iconColor: const Color(0xFF9333EA),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const NotesScreen()),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-
-              _NavigationCard(
-                title: 'Manage Rules',
-                subtitle: 'Create and edit auto-reply rules',
-                icon: Icons.rule_rounded,
-                iconColor: const Color(0xFF4F46E5),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const RulesScreen()),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-
-              _NavigationCard(
-                title: 'View Logs',
-                subtitle: 'See all auto-reply history',
-                icon: Icons.history_toggle_off_rounded,
-                iconColor: const Color(0xFF0D9488),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const LogsScreen()),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-
-              _NavigationCard(
-                title: 'Settings',
-                subtitle: 'Configure app preferences',
-                icon: Icons.settings_outlined,
-                iconColor: const Color(0xFF6366F1),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const SettingsScreen()),
-                  );
-                },
-              ),
+              _buildReplyDelayBadge(context, settings, replyCountdown),
             ],
-          ),
+
+            // Schedule status badge
+            if (settings.scheduleEnabled) ...[
+              const SizedBox(height: 12),
+              _buildScheduleBadge(context, settings),
+            ],
+
+            // Confirm-before-reply safety note
+            if (settings.confirmBeforeReply) ...[
+              const SizedBox(height: 12),
+              const DraftWarn(
+                  'Safety mode: you will be asked to approve each reply before it is sent.'),
+            ],
+
+            const SizedBox(height: 12),
+
+            // Today statistics
+            _buildStatsGrid(context, ref, stats),
+            const SizedBox(height: 16),
+            _buildAiUsageSection(context, ref),
+          ],
         ),
       ),
     );
@@ -501,10 +391,14 @@ class DashboardScreen extends ConsumerWidget {
             value: activeNotesCount.toString(),
             color: const Color(0xFF9333EA),
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const NotesScreen()),
-              );
+              if (onGoToTab != null) {
+                onGoToTab!(4);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const NotesScreen()),
+                );
+              }
             },
           ),
         ),

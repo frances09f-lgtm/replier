@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../theme/draft_theme.dart';
 import '../models/chat_message.dart';
 import '../providers/chat_provider.dart';
 
@@ -14,11 +15,22 @@ class ChatScreen extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Chat'),
-        actions: [
-          if (messages.isNotEmpty)
-            IconButton(
+      appBar: null,
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              Builder(builder: (context) {
+                final c = DraftColors.of(context);
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 6, 6, 0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                          child: Text('Chat',
+                              style: DraftText.display(30, c.tx))),
+                      if (messages.isNotEmpty)
+                        IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: 'Clear conversation',
               onPressed: () {
@@ -44,12 +56,10 @@ class ChatScreen extends ConsumerWidget {
                 );
               },
             ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          Column(
-            children: [
+                    ],
+                  ),
+                );
+              }),
               Expanded(
                 child: messages.isEmpty
                     ? Center(

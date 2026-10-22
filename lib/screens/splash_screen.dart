@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../core/default_rules.dart';
 import '../providers/rule_provider.dart';
-import 'dashboard_screen.dart';
+import 'main_shell.dart';
 import 'package:flutter/services.dart';
 import '../core/constants.dart';
 
@@ -52,7 +52,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       await Permission.notification.request();
     if (mounted)
       Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const DashboardScreen()));
+          MaterialPageRoute(builder: (context) => const MainShell()));
 
     // Refresh rules to sync with native side on startup
     try {

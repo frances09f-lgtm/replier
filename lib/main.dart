@@ -11,6 +11,7 @@ import 'repositories/log_repository.dart';
 import 'repositories/rule_repository.dart';
 import 'services/auto_reply_service.dart';
 import 'screens/splash_screen.dart';
+import 'theme/draft_theme.dart';
 import 'services/provider_secrets.dart';
 
 void main() async {
@@ -55,55 +56,14 @@ class MyApp extends ConsumerWidget {
     // settings object rebuilt the entire app (including SettingsScreen's
     // ListView) on every toggle, resetting scroll state and causing jumps.
     final isDark = ref.watch(appSettingsProvider.select((s) => s.darkMode));
-    const primaryColor = Color(0xFF4F46E5); // Modern Deep Indigo
 
     return MaterialApp(
       navigatorKey: appNavigatorKey,
-      title: 'Auto Reply Assistant',
+      title: 'Replier',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: isDark ? Brightness.dark : Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
-          brightness: isDark ? Brightness.dark : Brightness.light,
-          surface: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-        ),
-        scaffoldBackgroundColor:
-            isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-        appBarTheme: AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
-          backgroundColor:
-              isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-          surfaceTintColor: Colors.transparent,
-          titleTextStyle: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
-          ),
-        ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          margin: EdgeInsets.zero,
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
-              width: 1,
-            ),
-          ),
-        ),
-        floatingActionButtonTheme: FloatingActionButtonThemeData(
-          elevation: 3,
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-      ),
+      theme: buildDraftTheme(dark: false),
+      darkTheme: buildDraftTheme(dark: true),
+      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
       home: const SplashScreen(),
     );
   }

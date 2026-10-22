@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../theme/draft_theme.dart';
 import '../models/rule.dart';
 import '../providers/rule_provider.dart';
 import 'add_edit_rule_screen.dart';
@@ -13,38 +14,51 @@ class RulesScreen extends ConsumerWidget {
     final rules = ref.watch(filteredRulesProvider);
     ref.watch(searchQueryProvider); // keep reactive so list rebuilds on search
 
+    final c = DraftColors.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Rules'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              showSearch(
-                context: context,
-                delegate: RuleSearchDelegate(ref),
-              );
-            },
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 6, 6, 0),
+            child: Row(
+              children: [
+                Expanded(
+                    child: Text('Manage rules',
+                        style: DraftText.display(30, c.tx))),
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: () {
+                    showSearch(
+                      context: context,
+                      delegate: RuleSearchDelegate(ref),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: rules.isEmpty
+                ? _EmptyRulesView(onAddRule: () => _navigateToAddRule(context))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: rules.length,
+                    itemBuilder: (context, index) {
+                      final rule = rules[index];
+                      return _RuleCard(
+                        rule: rule,
+                        onEdit: () => _navigateToEditRule(context, rule),
+                        onDelete: () => _deleteRule(context, ref, rule.id),
+                        onToggle: () => ref
+                            .read(rulesProvider.notifier)
+                            .toggleRuleEnabled(rule.id),
+                      );
+                    },
+                  ),
           ),
         ],
       ),
-      body: rules.isEmpty
-          ? _EmptyRulesView(onAddRule: () => _navigateToAddRule(context))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: rules.length,
-              itemBuilder: (context, index) {
-                final rule = rules[index];
-                return _RuleCard(
-                  rule: rule,
-                  onEdit: () => _navigateToEditRule(context, rule),
-                  onDelete: () => _deleteRule(context, ref, rule.id),
-                  onToggle: () => ref
-                      .read(rulesProvider.notifier)
-                      .toggleRuleEnabled(rule.id),
-                );
-              },
-            ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _navigateToAddRule(context),
         child: const Icon(Icons.add),
