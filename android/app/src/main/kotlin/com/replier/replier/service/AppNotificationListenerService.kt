@@ -494,17 +494,20 @@ class AppNotificationListenerService : NotificationListenerService() {
                 val batchWindowMs = 2000L
                 Log.d(TAG, "No rule matched. Buffering for AI batch reply (model: $modelType, batchWindow: ${batchWindowMs}ms)...")
 
-                // Committed to an AI reply: only now tell the UI a message arrived,
-                // so silent skips above can never wedge the status card.
-                notifyPipelineStatus("got_message", sender)
-
                 // Start the full analysis budget before batching/queueing/loading.
                 val conversation = AnalysisAttempts.conversationKey(
                     packageName, getShortcutId(sbn), sbn.tag, sbn.id, sbn.key)
                 val bufferedId = messageBatcher.getPendingAttemptId(conversation)
                 val attemptId = if (bufferedId != null && analysisAttempts.isActive(bufferedId)) {
+                    // This episode was already announced. Re-firing got_message
+                    // for every buffered follow-up re-pins the status card on
+                    // "Got new message" and keeps postponing its staleness
+                    // recovery, so a chatty conversation wedges the dashboard.
                     bufferedId
                 } else {
+                    // Committed to an AI reply: only now tell the UI a message
+                    // arrived, so silent skips above can never wedge the card.
+                    notifyPipelineStatus("got_message", sender)
                     val attempt = analysisAttempts.begin(conversation, sender)
                     val timeout = Runnable {
                         analysisAttempts.expireDue()

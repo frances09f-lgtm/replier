@@ -154,6 +154,11 @@ class PipelineStatusNotifier extends StateNotifier<PipelineStatusData> {
   /// Display a stage for at least its minimum duration, then process next event.
   void _showStage(PipelineStage stage, String sender) {
     _cancelStageTimer();
+    // Native re-fires got_message for every incoming message, even when the
+    // card already shows that stage. A repeat of the SAME stage continues the
+    // current episode; only a stage change (or entry from idle) starts a new
+    // one. This matters for the staleness guard below.
+    final continuingSameStage = state.stage == stage;
     state = PipelineStatusData(stage: stage, sender: sender);
 
     final minMs = _minDisplayMs[stage] ?? 400;
@@ -164,16 +169,21 @@ class PipelineStatusNotifier extends StateNotifier<PipelineStatusData> {
 
     // Staleness guard: a native terminal event can always be lost (process
     // death, channel restart). Never leave a non-terminal stage wedged on
-    // screen - fall back to idle so the next message starts clean.
-    _stalenessTimer?.cancel();
-    _stalenessTimer = Timer(const Duration(seconds: 45), () {
-      if (!state.isIdle && state.stage != PipelineStage.sending) {
-        _queue.clear();
-        _cancelTimers();
-        state = const PipelineStatusData();
-        _processing = false;
-      }
-    });
+    // screen - fall back to idle so the next message starts clean. The guard
+    // is armed on stage entry only: re-arming it on every repeated got_message
+    // let a chatty conversation or a failing pipeline postpone the recovery
+    // forever and pin the card on "Got new message".
+    if (!continuingSameStage || _stalenessTimer == null) {
+      _stalenessTimer?.cancel();
+      _stalenessTimer = Timer(const Duration(seconds: 45), () {
+        if (!state.isIdle && state.stage != PipelineStage.sending) {
+          _queue.clear();
+          _cancelTimers();
+          state = const PipelineStatusData();
+          _processing = false;
+        }
+      });
+    }
   }
 
   /// Start the sending stage with a live countdown synchronized to wall-clock time.

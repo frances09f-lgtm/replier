@@ -55,4 +55,21 @@ void main() {
       expect(notifier.state.isIdle, isTrue);
     });
   });
+
+  test('repeated got_message events do not postpone staleness recovery', () {
+    fakeAsync((async) {
+      final notifier = PipelineStatusNotifier();
+      addTearDown(notifier.dispose);
+
+      // A chatty conversation re-announces the same stage every 10s.
+      for (var i = 0; i < 5; i++) {
+        AutoReplyService.onPipelineStatus
+            ?.call({'state': 'got_message', 'sender': 'Demo contact'});
+        async.elapse(const Duration(seconds: 10));
+      }
+      // 50s after the FIRST event with nothing terminal: recovered, even
+      // though the latest event is only 10s old.
+      expect(notifier.state.isIdle, isTrue);
+    });
+  });
 }
