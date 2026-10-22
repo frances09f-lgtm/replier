@@ -1,0 +1,617 @@
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Replier UI draft</title>
+  <meta name="description" content="A clickable design draft of the redesigned Replier Android app, built with sample data for approval.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Replier UI draft">
+  <meta property="og:description" content="A clickable design draft of the redesigned Replier Android app, built with sample data for approval.">
+  <meta property="og:image" content="https://p-qmzudulhmlfbdocxhf6frsaycm.pally.site/_pally/og?v=cgsf0m">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Replier UI draft">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Replier UI draft">
+  <meta name="twitter:description" content="A clickable design draft of the redesigned Replier Android app, built with sample data for approval.">
+  <meta name="twitter:image" content="https://p-qmzudulhmlfbdocxhf6frsaycm.pally.site/_pally/og?v=cgsf0m">
+  <style>:root {
+  color-scheme: light;
+  --color-bg: #dfe9e6; --color-surface: #f4fbf8;
+  --color-text: #151d1b; --color-muted: #3f4946;
+  --color-accent: #006b5e; --color-accent-alt: #005046;
+  --color-accent-text: var(--color-accent);
+  --color-accent-text-hover: var(--color-accent-alt);
+  --color-on-accent: #ffffff;
+  --color-border: rgba(21, 29, 27, 0.16); --color-danger: #ba1a1a;
+  --font-body: "Figtree", "Roboto", system-ui, sans-serif; --font-display: "Outfit", "Roboto", system-ui, sans-serif; --font-mono: "Roboto Mono", "SFMono-Regular", Consolas, monospace;
+  --radius-sm: 0.75rem; --radius-md: 1.25rem;
+  --radius-lg: 1.75rem; --radius-pill: 999px;
+  --space-xs: 0.25rem; --space-sm: 0.5rem; --space-md: 1rem;
+  --space-lg: 1.5rem; --space-xl: 2.5rem;
+  --card-shadow: 0 0.5rem 1.5rem rgb(0 40 34 / 10%); --card-border-width: 1px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-bg: #dfe9e6; --color-surface: #f4fbf8;
+    --color-text: #151d1b; --color-muted: #3f4946;
+    --color-accent: #006b5e; --color-accent-alt: #005046;
+    --color-on-accent: #ffffff;
+    --color-border: rgba(21, 29, 27, 0.16); --color-danger: #ba1a1a;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { min-width: 20rem; background: var(--color-bg); overflow-x: clip; }
+/* Overscroll shows this viewport-sized canvas copy. The opaque body hides it inside the page. */
+html::before { content: ""; position: fixed; inset: 0; z-index: -1; background: radial-gradient(60rem 36rem at 50% 0%, #c4e3dc, transparent 70%), linear-gradient(180deg, #dfe9e6, #cfe0db); }
+body {
+  min-height: 100vh; margin: 0; color: var(--color-text);
+  background: radial-gradient(60rem 36rem at 50% 0%, #c4e3dc, transparent 70%), linear-gradient(180deg, #dfe9e6, #cfe0db); background-color: var(--color-bg); background-attachment: fixed;
+  font-family: var(--font-body); font-size: 1rem; line-height: 1.55; text-rendering: optimizeLegibility;
+  
+  overflow-x: clip;
+}
+button, input, textarea, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+a { color: var(--color-accent-text); text-underline-offset: 0.18em; }
+a:hover { color: var(--color-accent-text-hover); }
+a:not(.pally-button):active { color: var(--color-text); }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 3px solid var(--color-accent); outline-offset: 3px;
+}
+img, svg { display: block; max-width: 100%; }
+h1, h2, h3, p { margin-block-start: 0; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.05; letter-spacing: -0.025em; }
+h1 { font-size: clamp(2.25rem, 12vw, 5.75rem); }
+h2 { font-size: clamp(1.4rem, 7vw, 2.2rem); }
+.pally-shell { width: min(100% - 2rem, 68rem); margin-inline: auto; }
+.pally-main { padding-block: var(--space-xl); }
+.pally-card {
+  border: var(--card-border-width) solid var(--color-border); border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  box-shadow: var(--card-shadow);
+}
+.pally-button {
+  display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--radius-pill); padding: var(--space-sm) var(--space-lg);
+  color: var(--color-on-accent); background: var(--color-accent); font-family: var(--font-display);
+  font-weight: 800; text-decoration: none; cursor: pointer; white-space: nowrap;
+  
+}
+.pally-button:hover { color: var(--color-on-accent); filter: brightness(1.06); }
+.pally-button:disabled, .pally-button[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.pally-footer {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-sm) var(--space-lg);
+  border-top: 1px solid var(--color-border); padding-block: var(--space-lg);
+  color: var(--color-muted); font-size: 0.88rem;
+}
+.pally-footer p { margin: 0; }
+.pally-footer a { display: inline-flex; align-items: center; gap: 0.45rem; color: inherit; }
+.pally-footer a:hover { color: var(--color-accent-text-hover); }
+.pally-emblem { display: inline-block; width: 1.25rem; height: 1.25rem; background: currentColor; -webkit-mask: url("/_pally/brand/emblem.svg") center / contain no-repeat; mask: url("/_pally/brand/emblem.svg") center / contain no-repeat; }
+@media (min-width: 40rem) {
+  .pally-shell { width: min(100% - 3rem, 68rem); }
+  .pally-main { padding-block: 4rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pally-button { transition: transform 140ms ease, filter 140ms ease; }
+  .pally-button:hover { transform: translateY(-1px); }
+  .pally-button:active { transform: translateY(1px); }
+}
+.pally-button:active { filter: brightness(0.96); }
+
+.pally-main.pally-shell{width:100%;max-width:none;padding:1rem 0 0}
+.draft-top{max-width:26rem;margin:0 auto 0.75rem;padding:0 1rem;text-align:center}
+.draft-top h1{font-size:1.5rem;margin:0}
+.draft-top p{margin:.25rem 0 0;color:var(--color-muted);font-size:.95rem}
+.phone-wrap{display:flex;justify-content:center;padding:0 0 1rem}
+.phone{--bg:#f4fbf8;--s1:#e6f1ed;--s2:#d6e6e1;--pri:#006b5e;--onpri:#fff;--pc:#a0f2e1;--onpc:#00201b;--tx:#151d1b;--mut:#3f4946;--out:#6f7976;--err:#ba1a1a;--errc:#ffdad6;--oerr:#410002;--tc:#d3e4f0;--otc:#0b1d29;
+position:relative;width:100%;max-width:420px;height:min(860px,calc(100dvh - 7.5rem));min-height:600px;background:var(--bg);color:var(--tx);overflow:hidden;display:flex;flex-direction:column;font-family:var(--font-body);font-size:1rem;line-height:1.45;isolation:isolate}
+.phone[data-theme=dusk]{--bg:#1c2b2d;--s1:#26383a;--s2:#324a4c;--pri:#7fd8c8;--onpri:#00382f;--pc:#1f5a52;--onpc:#b6f2e6;--tx:#e3efed;--mut:#b3c8c5;--out:#86a09c;--err:#ffb4ab;--errc:#5c1a16;--oerr:#ffdad6;--tc:#33495a;--otc:#d3e4f0}
+.phone[data-theme=oled]{--bg:#000;--s1:#0d1514;--s2:#18221f;--pri:#6fdcc9;--onpri:#00201b;--pc:#0b4a41;--onpc:#b6f2e6;--tx:#e8f2f0;--mut:#aabdba;--out:#7d908c;--err:#ffb4ab;--errc:#4a1411;--oerr:#ffdad6;--tc:#1d3140;--otc:#d3e4f0}
+@media(min-width:480px){.phone{border-radius:44px;border:10px solid #0b0f0e;box-shadow:0 2rem 4rem rgb(0 30 25 / 35%)}}
+.phone *{scrollbar-width:none}
+.blob{position:absolute;z-index:-1;pointer-events:none;background:var(--pc);opacity:.55}
+.b1{width:15rem;height:15rem;top:-5rem;right:-5rem;border-radius:62% 38% 55% 45%/48% 60% 40% 52%}
+.b2{width:12rem;height:12rem;bottom:5rem;left:-6rem;border-radius:45% 55% 40% 60%/58% 42% 58% 42%;background:var(--tc);opacity:.4}
+.ribbon{background:var(--tc);color:var(--otc);font-size:.8rem;font-weight:600;text-align:center;padding:.25rem .5rem;letter-spacing:.02em}
+.hdr{display:flex;align-items:center;gap:.5rem;padding:.6rem .9rem .4rem}
+.bar{flex:1;min-width:0;display:flex;align-items:center;gap:.6rem;height:3rem;border-radius:999px;background:var(--s1);padding:0 1rem;color:var(--mut);font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.bar b{font-family:var(--font-display);color:var(--tx);font-weight:600;font-size:1.05rem;overflow:hidden;text-overflow:ellipsis}
+.ib{width:3rem;height:3rem;flex:none;border:0;border-radius:50%;background:var(--s1);color:var(--tx);display:grid;place-items:center;cursor:pointer;transition:transform 180ms cubic-bezier(.3,1.4,.5,1),background-color 150ms}
+.ib:hover{background:var(--s2)}
+.ib:active,.btn:active,.fab:active,.nav button:active,.card.tap:active,.chip:active{transform:scale(.93)}
+.phone button:focus-visible,.phone input:focus-visible,.phone textarea:focus-visible,.phone select:focus-visible,.phone summary:focus-visible{outline:3px solid var(--pri);outline-offset:2px}
+.ic{width:1.4rem;height:1.4rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.scr-wrap{flex:1;min-height:0;position:relative}
+.scr{position:absolute;inset:0;overflow-y:auto;padding:.5rem .9rem 7rem;display:none}
+.scr.on{display:block;animation:enter 320ms cubic-bezier(.2,.8,.2,1) both}
+@keyframes enter{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+.phone h2{font-size:1.9rem;margin:.5rem .25rem .75rem;font-weight:600}
+.phone h3{font-size:1.15rem;margin:0 0 .5rem;font-weight:600}
+.card{background:var(--s1);border-radius:28px;padding:1.1rem;margin-bottom:.75rem;position:relative;overflow:hidden}
+.card.tap{cursor:pointer;transition:transform 180ms cubic-bezier(.3,1.4,.5,1)}
+.card.tone{background:var(--pc);color:var(--onpc)}
+.hero{background:var(--pri);color:var(--onpri);border-radius:36px;padding:1.4rem;margin-bottom:.75rem;position:relative;overflow:hidden;transition:background-color 250ms}
+.hero.off{background:var(--s2);color:var(--tx)}
+.hero::after{content:"";position:absolute;width:11rem;height:11rem;right:-3rem;top:-3.5rem;background:rgb(255 255 255 / 14%);border-radius:58% 42% 52% 48%/50% 55% 45% 50%}
+.hero>*{position:relative;z-index:1}
+.eyebrow{font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.hero-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:.6rem 0}
+.hero-row strong{font-family:var(--font-display);font-size:2.3rem;line-height:1;font-weight:600}
+.msw{width:5.5rem;height:3.25rem;border-radius:999px;border:0;background:var(--onpri);position:relative;cursor:pointer;flex:none;transition:background-color 200ms}
+.msw::after{content:"";position:absolute;top:.4rem;left:.4rem;width:2.45rem;height:2.45rem;border-radius:50%;background:var(--pri);transition:transform 280ms cubic-bezier(.3,1.3,.5,1),background-color 200ms}
+.msw[aria-checked=true]::after{transform:translateX(2.25rem)}
+.hero.off .msw{background:var(--out)}.hero.off .msw::after{background:var(--bg)}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.chip{min-height:2.75rem;display:inline-flex;align-items:center;gap:.4rem;padding:0 1rem;border-radius:999px;border:1.5px solid var(--out);background:transparent;color:var(--tx);font-weight:500;font-size:.92rem;cursor:pointer;white-space:nowrap;transition:transform 180ms cubic-bezier(.3,1.4,.5,1),background-color 150ms}
+.chip.sel{background:var(--pc);color:var(--onpc);border-color:transparent}
+.chip.static{cursor:default;min-height:2rem;font-size:.85rem;padding:0 .75rem}
+.chip.ok{background:var(--pc);color:var(--onpc);border-color:transparent}
+.chip.bad{background:var(--errc);color:var(--oerr);border-color:transparent}
+.chip.wait{background:var(--tc);color:var(--otc);border-color:transparent}
+.hero .chip{border-color:rgb(255 255 255 / 45%);color:inherit;background:rgb(255 255 255 / 12%)}
+.btn{min-height:3rem;border:0;border-radius:999px;padding:0 1.4rem;font-weight:600;font-family:var(--font-display);font-size:1rem;cursor:pointer;background:var(--pri);color:var(--onpri);display:inline-flex;align-items:center;justify-content:center;gap:.5rem;white-space:nowrap;transition:transform 180ms cubic-bezier(.3,1.4,.5,1),filter 150ms}
+.btn:hover{filter:brightness(1.08)}
+.btn.sec{background:var(--pc);color:var(--onpc)}
+.btn.ter{background:transparent;color:var(--pri);padding:0 .9rem}
+.btn.dng{background:var(--errc);color:var(--oerr)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btnrow{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin:.75rem 0}
+.stat{background:var(--bg);border-radius:20px;padding:.65rem .5rem;text-align:center}
+.stat b{display:block;font-family:var(--font-display);font-size:1.7rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:.78rem;color:var(--mut)}
+.prog{height:.9rem;border-radius:999px;background:var(--bg);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--pri);border-radius:999px;transition:width 300ms ease-out}
+.muted{color:var(--mut)}.small{font-size:.88rem}
+.ring-row{display:flex;align-items:center;gap:1rem}
+.ring{position:relative;width:5.5rem;height:5.5rem;flex:none}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:9;stroke-linecap:round}
+.ring .tr{stroke:var(--bg)}.ring .fg{stroke:var(--pri)}.ring.exp .fg{stroke:var(--err)}
+.ring span{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--font-display);font-weight:600;font-size:1.4rem;font-variant-numeric:tabular-nums}
+.list{display:flex;flex-direction:column;gap:.6rem}
+.item{display:flex;gap:.75rem;align-items:flex-start}
+.app{width:2.5rem;height:2.5rem;border-radius:14px;display:grid;place-items:center;font-weight:700;font-family:var(--font-display);flex:none;color:#fff}
+.app.wa{background:#1d7a4d}.app.ig{background:#a8326a}
+.item .body{flex:1;min-width:0}
+.item .body p{margin:.1rem 0;overflow-wrap:anywhere}
+.row{display:flex;align-items:center;justify-content:space-between;gap:.75rem;min-height:3rem}
+.row>div:first-child{min-width:0;flex:1}
+.sw{width:3.25rem;height:2rem;border-radius:999px;border:2px solid var(--out);background:var(--s2);position:relative;cursor:pointer;flex:none;padding:0;transition:background-color 200ms,border-color 200ms}
+.sw::after{content:"";position:absolute;top:.3rem;left:.3rem;width:1.1rem;height:1.1rem;border-radius:50%;background:var(--out);transition:transform 260ms cubic-bezier(.3,1.3,.5,1),background-color 200ms,width 200ms,height 200ms}
+.sw[aria-checked=true]{background:var(--pri);border-color:var(--pri)}
+.sw[aria-checked=true]::after{background:var(--onpri);transform:translateX(1.25rem);width:1.4rem;height:1.4rem;top:.15rem;left:.2rem}
+.sw-wrap{position:relative;display:inline-flex;min-width:2.75rem;min-height:2.75rem;align-items:center;justify-content:center}
+.seg{display:flex;border:1.5px solid var(--out);border-radius:999px;overflow:hidden}
+.seg button{flex:1;min-height:2.75rem;border:0;background:transparent;color:var(--tx);font-weight:600;cursor:pointer;padding:0 .5rem;white-space:nowrap}
+.seg button+button{border-left:1.5px solid var(--out)}
+.seg button[aria-pressed=true]{background:var(--pc);color:var(--onpc)}
+label.l{display:block;font-weight:600;font-size:.88rem;margin:.8rem 0 .3rem}
+.in{width:100%;min-height:3rem;border-radius:16px;border:1.5px solid var(--out);background:var(--bg);color:var(--tx);padding:.6rem .9rem;font-size:1rem}
+.in:hover{border-color:var(--tx)}.in:focus{border-color:var(--pri)}
+.in[aria-invalid=true]{border-color:var(--err)}
+.in:disabled{opacity:.5}
+.in:-webkit-autofill{-webkit-text-fill-color:var(--tx);box-shadow:0 0 0 40px var(--bg) inset}
+textarea.in{min-height:6rem;resize:vertical}
+.err{color:var(--err);font-size:.88rem;font-weight:500;margin:.25rem 0 0}
+.warn{background:var(--tc);color:var(--otc);border-radius:20px;padding:.75rem .9rem;font-size:.9rem;margin:.75rem 0;font-weight:500}
+.warn.red{background:var(--errc);color:var(--oerr)}
+.fab{position:absolute;right:1.1rem;bottom:6.6rem;z-index:5;height:3.5rem;border:0;border-radius:20px;background:var(--pc);color:var(--onpc);padding:0 1.3rem;font-weight:700;font-family:var(--font-display);display:none;align-items:center;gap:.5rem;cursor:pointer;box-shadow:0 .5rem 1rem rgb(0 0 0 / 22%);transition:transform 180ms cubic-bezier(.3,1.4,.5,1)}
+.fab.show{display:inline-flex}
+.nav{position:absolute;left:.9rem;right:.9rem;bottom:.9rem;z-index:6;height:4.4rem;border-radius:999px;background:var(--s2);box-shadow:0 .5rem 1.5rem rgb(0 0 0 / 25%);display:flex;align-items:center;justify-content:space-around;padding:0 .35rem;transition:transform 260ms ease-out,opacity 200ms}
+.nav.hide{transform:translateY(7rem);opacity:0;pointer-events:none}
+.nav button{flex:1;min-width:0;height:3.5rem;margin:0 .1rem;border:0;border-radius:999px;background:transparent;color:var(--mut);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.05rem;font-size:.68rem;font-weight:600;cursor:pointer;transition:transform 180ms cubic-bezier(.3,1.4,.5,1),background-color 200ms,color 200ms}
+.nav button[aria-current=page]{background:var(--pc);color:var(--onpc)}
+.scrim{position:absolute;inset:0;background:rgb(0 0 0 / 55%);z-index:20;display:none}
+.scrim.on{display:block;animation:fade 200ms both}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:21;background:var(--s1);border-radius:32px 32px 0 0;padding:1.1rem 1.1rem 1.4rem;display:none;max-height:92%;overflow-y:auto}
+.sheet.on{display:block;animation:rise 340ms cubic-bezier(.2,.9,.25,1) both}
+@keyframes rise{from{transform:translateY(100%)}to{transform:none}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.grab{width:2.5rem;height:.3rem;border-radius:9px;background:var(--out);margin:0 auto .8rem}
+.bub{max-width:85%;padding:.65rem .9rem;border-radius:22px;margin:.35rem 0;overflow-wrap:anywhere}
+.bub.me{margin-left:auto;background:var(--pri);color:var(--onpri);border-bottom-right-radius:6px}
+.bub.ai{background:var(--s1);border-bottom-left-radius:6px}
+.chatbar{display:flex;gap:.5rem;margin-top:.75rem}
+.chatbar .in{border-radius:999px}
+.mini{min-height:2.75rem;padding:0 .9rem;border:0;background:transparent;color:var(--pri);font-weight:600;border-radius:999px;cursor:pointer}
+details.card summary{list-style:none;cursor:pointer;min-height:2.75rem;display:flex;align-items:center;justify-content:space-between;font-family:var(--font-display);font-weight:600;font-size:1.1rem}
+details.card summary::-webkit-details-marker{display:none}
+details.card summary::after{content:"+";font-size:1.5rem;color:var(--pri);transition:transform 200ms}
+details.card[open] summary::after{transform:rotate(45deg)}
+details.card[open]>summary{margin-bottom:.4rem}
+input[type=range]{width:100%;accent-color:var(--pri);min-height:2.75rem}
+.step{display:flex;gap:.75rem;align-items:flex-start;padding:.7rem 0;border-bottom:1px solid color-mix(in srgb,var(--out) 40%,transparent)}
+.step:last-of-type{border:0}
+.dot{width:2.75rem;height:2.75rem;border-radius:50%;border:2px solid var(--out);background:transparent;color:var(--onpri);cursor:pointer;display:grid;place-items:center;flex:none}
+.dot[aria-pressed=true]{background:var(--pri);border-color:var(--pri)}
+.dot .ic{opacity:0}.dot[aria-pressed=true] .ic{opacity:1}
+.mask{font-family:var(--font-mono);letter-spacing:.1em}
+.back{display:inline-flex;align-items:center;gap:.4rem;min-height:2.75rem;border:0;background:none;color:var(--pri);font-weight:600;cursor:pointer;padding:0 .5rem}
+.dlprog{margin-top:.5rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.phone [hidden]{display:none!important}
+.foot-note{max-width:26rem;margin:0 auto;padding:0 1rem 1rem;text-align:center;color:var(--color-muted);font-size:.88rem}
+@media(max-width:479px){.pally-main.pally-shell{padding-top:.5rem}.phone{height:calc(100dvh - 6.5rem);min-height:560px}}
+@media(prefers-reduced-motion:reduce){.scr.on,.sheet.on,.scrim.on{animation:none}.ib,.btn,.chip,.fab,.nav button,.card.tap,.sw::after,.msw::after,.prog i{transition:none}.ib:active,.btn:active,.fab:active,.nav button:active,.card.tap:active,.chip:active{transform:none}}
+</style>
+</head>
+<body>
+  <main class="pally-shell pally-main">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&amp;family=Outfit:wght@500;600;700&amp;display=swap">
+<div class="draft-top"><h1>Replier UI draft</h1><p>Clickable prototype of the Android app. Try the dock, switches, themes, and the confirmation sheet.</p></div>
+<div class="phone-wrap"><div class="phone" id="phone" data-theme="light" role="application" aria-label="Replier app prototype">
+<div class="blob b1" aria-hidden="true"></div><div class="blob b2" aria-hidden="true"></div>
+<div class="ribbon">Draft preview with sample data</div>
+<header class="hdr">
+ <div class="bar"><span aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg></span><b id="bartitle">Replier</b></div>
+ <button type="button" class="ib" id="themebtn" aria-label="Switch theme"><span aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"></path></svg></span></button>
+ <button type="button" class="ib" data-go="settings" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg></button>
+</header>
+<div class="sr" aria-live="polite">Theme: <span id="themelabel">Light</span></div>
+<div class="scr-wrap">
+
+<section class="scr on" id="s-dash" aria-label="Dashboard">
+ <h2 tabindex="-1">Dashboard</h2>
+ <div class="hero" id="hero">
+  <div class="eyebrow">Master reply switch</div>
+  <div class="hero-row"><strong id="herostate">On</strong><button type="button" class="msw" id="master" role="switch" aria-checked="true" aria-label="Master reply switch"></button></div>
+  <p id="herostatus" style="margin:0 0 .75rem;font-weight:500">Listening to WhatsApp, Instagram</p>
+  <div class="chips"><span class="chip static">Notification Access OK</span><span class="chip static">Confirm Before Reply ON</span><span class="chip static">Groups ignored</span></div>
+ </div>
+ <div class="card" id="analysis-card">
+  <h3>Analysis</h3>
+  <div class="ring-row"><div class="ring" id="aring" role="img" aria-label="AI analysis countdown, 100 seconds"><svg viewBox="0 0 80 80" aria-hidden="true"><circle class="tr" cx="40" cy="40" r="36"></circle><circle class="fg" cx="40" cy="40" r="36" style="stroke-dasharray: 226.195; stroke-dashoffset: 63.3345;"></circle></svg><span>72</span></div><p class="small" id="atext" style="margin:0" aria-live="polite">Analyzing a sample message from Maya. A reply can only be scheduled while this is running.</p></div>
+  <div class="btnrow"><button type="button" class="btn sec" id="arestart" hidden="">Restart analysis</button></div>
+ </div>
+ <div class="card">
+  <h3>Today</h3>
+  <div class="stats"><div class="stat"><b id="d-sent">12</b><span>Replies sent</span></div><div class="stat"><b>8</b><span>Rules matched</span></div><div class="stat"><b>4</b><span>AI replies</span></div><div class="stat"><b>3</b><span>Groups skipped</span></div><div class="stat"><b>1</b><span>Failed</span></div></div>
+  <div class="row" style="min-height:2rem"><span class="small">Daily limit</span><strong id="limitv">12 of 50</strong></div>
+  <div class="prog" role="progressbar" aria-label="Daily limit used"><i id="limitbar" style="width:24%"></i></div>
+ </div>
+ <div class="card tone">
+  <h3>AI usage</h3><p class="small" style="margin:0 0 .5rem">Provider: Groq Cloud API (sample)</p>
+  <div class="prog" style="background:rgb(255 255 255 / 40%)"><i style="width:35%"></i></div><p class="small" style="margin:.4rem 0 0">35% of today's AI budget used</p>
+ </div>
+ <div class="card"><h3>Recent activity</h3><div class="list">
+  <div class="item"><div class="app wa" aria-hidden="true">W</div><div class="body"><strong>Maya (sample)</strong><p class="small muted">AI reply sent, 10:42</p></div></div>
+  <div class="item"><div class="app ig" aria-hidden="true">I</div><div class="body"><strong>Sample Client A</strong><p class="small muted">Rule "hours" sent, 09:15</p></div></div>
+  <div class="item"><div class="app wa" aria-hidden="true">W</div><div class="body"><strong>Weekend group (sample)</strong><p class="small muted">Skipped, group chat</p></div></div>
+ </div><div class="btnrow"><button type="button" class="btn" id="previewbtn">Preview confirmation</button></div></div>
+ <div class="card"><h3>Setup checklist</h3><p class="small muted" id="chk-n" style="margin:0 0 .5rem">0 of 7 steps done</p><div class="prog"><i id="chk-bar" style="width: 0%;"></i></div><div class="btnrow"><button type="button" class="btn sec" data-go="setup">Open setup checklist</button></div></div>
+</section>
+
+<section class="scr" id="s-rules" aria-label="Rules">
+ <h2>Manage rules</h2>
+ <label class="sr" for="rulesearch">Search rules</label>
+ <input class="in" id="rulesearch" type="search" placeholder="Search trigger, reply, or contact" style="border-radius:999px;margin-bottom:.4rem">
+ <p class="muted small" id="rulecount" style="margin:.4rem .5rem .75rem">3 rules, 2 enabled</p>
+ <div id="rulelist" tabindex="-1"><div class="card"><div class="row"><div><div class="eyebrow muted">When a message</div><strong>hours</strong></div><span class="sw-wrap"><button type="button" class="sw" role="switch" aria-checked="true" aria-label="Enable rule hours" data-tog="1"></button></span></div><p class="muted" style="margin:.4rem 0 .6rem">Reply: We are open 9 to 5, Monday to Friday.</p><div class="chips"><span class="chip static ok">Contains Match</span><span class="chip static">Anyone</span></div><div class="btnrow"><button class="btn sec" data-edit="1" type="button">Edit</button><button class="btn ter" data-del="1" type="button">Delete</button></div></div><div class="card"><div class="row"><div><div class="eyebrow muted">When a message</div><strong>price list</strong></div><span class="sw-wrap"><button type="button" class="sw" role="switch" aria-checked="true" aria-label="Enable rule price list" data-tog="2"></button></span></div><p class="muted" style="margin:.4rem 0 .6rem">Reply: I will send the price list shortly.</p><div class="chips"><span class="chip static ok">Contains Match</span><span class="chip static">Sample Client A</span></div><div class="btnrow"><button class="btn sec" data-edit="2" type="button">Edit</button><button class="btn ter" data-del="2" type="button">Delete</button></div></div><div class="card"><div class="row"><div><div class="eyebrow muted">When a message</div><strong>OK?</strong></div><span class="sw-wrap"><button type="button" class="sw" role="switch" aria-checked="false" aria-label="Enable rule OK?" data-tog="3"></button></span></div><p class="muted" style="margin:.4rem 0 .6rem">Reply: Yes, all good.</p><div class="chips"><span class="chip static ok">Exact Match</span><span class="chip static">Anyone</span><span class="chip static">Case sensitive</span></div><div class="btnrow"><button class="btn sec" data-edit="3" type="button">Edit</button><button class="btn ter" data-del="3" type="button">Delete</button></div></div></div>
+</section>
+
+<section class="scr" id="s-ruleedit" aria-label="Add or edit rule">
+ <button type="button" class="back" data-go="rules"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg> Rules</button>
+ <h2 id="rf-title">Add rule</h2>
+ <div class="card">
+  <label class="l" for="rf-t">Trigger text</label><input class="in" id="rf-t" maxlength="80"><p class="err fe" id="rf-t-e"></p>
+  <label class="l" for="rf-r">Reply text</label><textarea class="in" id="rf-r" maxlength="300"></textarea><p class="err fe" id="rf-r-e"></p>
+  <label class="l" id="rf-m-l">Match type</label>
+  <div class="seg" id="rf-m" role="group" aria-labelledby="rf-m-l"><button type="button" data-v="Exact" aria-pressed="false">Exact</button><button type="button" data-v="Contains" aria-pressed="true">Contains</button></div>
+  <div class="row" style="margin-top:.5rem"><span>Case sensitive</span><span class="sw-wrap"><button type="button" class="sw" role="switch" id="rf-cs" aria-checked="false" aria-label="Case sensitive"></button></span></div>
+  <label class="l" for="rf-c">Contact filter (optional)</label><input class="in" id="rf-c" placeholder="Leave empty for anyone">
+  <div class="row" style="margin-top:.5rem"><span>Enabled</span><span class="sw-wrap"><button type="button" class="sw" role="switch" id="rf-en" aria-checked="false" aria-label="Enabled"></button></span></div>
+ </div>
+ <div class="warn red">A rule can send your words to another person. Review before enabling.</div>
+ <div class="btnrow"><button type="button" class="btn" id="rf-save">Save rule</button><button type="button" class="btn ter" data-go="rules">Cancel</button></div>
+</section>
+
+<section class="scr" id="s-chat" aria-label="Chat">
+ <h2>Chat</h2>
+ <div class="warn">Test mode: nothing is sent. Try the AI and train preferred replies.</div>
+ <div id="chatlog" aria-live="polite"><div class="bub ai">Hi! Type a sample incoming message and I will answer like Replier would.</div></div>
+ <div class="btnrow"><button type="button" class="btn sec" id="train" disabled=""><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11v9H4v-9zM7 11l4-8c2 0 3 1 2.6 3L13 9h6a2 2 0 0 1 2 2.4l-1.2 6A2 2 0 0 1 18 19H7"></path></svg> Train this reply</button></div>
+ <div class="chatbar"><label class="sr" for="chatin">Test message</label><input class="in" id="chatin" placeholder="Type a test message"><button type="button" class="ib" id="chatsend" aria-label="Send test message" style="background:var(--pri);color:var(--onpri)"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-3-7z"></path></svg></button></div>
+</section>
+
+<section class="scr" id="s-logs" aria-label="Logs">
+ <h2>Logs</h2>
+ <div class="warn">Check the actual conversation, a log entry is not proof of delivery.</div>
+ <div class="chips" id="logfilters" role="group" aria-label="Filter by status" style="margin-bottom:.75rem">
+  <button type="button" class="chip sel" data-f="All" aria-pressed="true">All</button><button type="button" class="chip" data-f="Attempted" aria-pressed="false">Attempted</button><button type="button" class="chip" data-f="Sent" aria-pressed="false">Sent</button><button type="button" class="chip" data-f="Failed" aria-pressed="false">Failed</button>
+ </div>
+ <div id="loglist"><div class="card"><div class="item"><div class="app wa" aria-hidden="true">W</div><div class="body"><div class="row" style="min-height:0"><strong>Maya (sample)</strong><span class="muted small">10:42</span></div><p class="muted small">WhatsApp</p><p>In: Are we still on for 6?</p><p>Out: Yes, 6 pm works. See you then.</p><div class="chips" style="margin-top:.4rem"><span class="chip static ok">Sent</span><span class="chip static">Source: AI</span></div></div></div></div><div class="card"><div class="item"><div class="app ig" aria-hidden="true">I</div><div class="body"><div class="row" style="min-height:0"><strong>Sample Client A</strong><span class="muted small">09:15</span></div><p class="muted small">Instagram</p><p>In: What are your hours?</p><p>Out: We are open 9 to 5, Monday to Friday.</p><div class="chips" style="margin-top:.4rem"><span class="chip static ok">Sent</span><span class="chip static">Source: Rule</span></div></div></div></div><div class="card"><div class="item"><div class="app wa" aria-hidden="true">W</div><div class="body"><div class="row" style="min-height:0"><strong>Jo (sample)</strong><span class="muted small">08:58</span></div><p class="muted small">WhatsApp</p><p>In: Can you send the price list?</p><p>Out: I will send the price list shortly.</p><div class="chips" style="margin-top:.4rem"><span class="chip static wait">Attempted</span><span class="chip static">Source: Rule</span></div></div></div></div><div class="card"><div class="item"><div class="app ig" aria-hidden="true">I</div><div class="body"><div class="row" style="min-height:0"><strong>Sam (sample)</strong><span class="muted small">Yesterday</span></div><p class="muted small">Instagram</p><p>In: Call me when free</p><p>Out: I am away right now. I will reply when I am back.</p><div class="chips" style="margin-top:.4rem"><span class="chip static bad">Failed</span><span class="chip static">Source: AI</span></div></div></div></div></div>
+</section>
+
+<section class="scr" id="s-notes" aria-label="Notes and reminders">
+ <h2>Notes and reminders</h2>
+ <div class="warn">Check the details. Dates and times are detected from messages and can be wrong.</div>
+ <div class="card"><label class="l" for="notein" style="margin-top:0">Try a message</label><textarea class="in" id="notein" placeholder="Lunch tomorrow at 1 pm?" style="min-height:4.5rem"></textarea><p class="err" id="notein-e"></p><div class="btnrow"><button type="button" class="btn sec" id="noteadd">Extract note</button></div></div>
+ <div id="notelist"><div class="card"><p style="margin-bottom:.4rem;overflow-wrap:anywhere"><strong>Dentist appointment Thursday at 4:30 pm</strong></p><div class="chips"><span class="chip static wait">Detected: Thursday, 4:30 pm</span><span class="chip static">From Maya (sample)</span></div><div class="row" style="margin-top:.4rem"><span>Add reminder</span><span class="sw-wrap"><button type="button" class="sw" role="switch" aria-checked="true" aria-label="Add reminder for note 1" data-nrem="0"></button></span></div></div><div class="card"><p style="margin-bottom:.4rem;overflow-wrap:anywhere"><strong>Bring the signed form tomorrow morning</strong></p><div class="chips"><span class="chip static wait">Detected: Tomorrow, morning</span><span class="chip static">From Jo (sample)</span></div><div class="row" style="margin-top:.4rem"><span>Add reminder</span><span class="sw-wrap"><button type="button" class="sw" role="switch" aria-checked="false" aria-label="Add reminder for note 2" data-nrem="1"></button></span></div></div></div>
+</section>
+
+<section class="scr" id="s-settings" aria-label="Settings">
+ <h2>Settings</h2>
+ <details class="card" open=""><summary>Theme</summary>
+  <div class="seg" role="group" aria-label="Theme"><button type="button" data-theme-pick="light" aria-pressed="true">Light</button><button type="button" data-theme-pick="dusk" aria-pressed="false">Dusk</button><button type="button" data-theme-pick="oled" aria-pressed="false">Dark OLED</button></div></details>
+ <details class="card"><summary>Schedule</summary><div class="row"><div><strong>Only reply in active hours</strong><div class="muted small">Mon to Fri, 08:00 to 20:00</div></div><span class="sw-wrap"><button type="button" class="sw" role="switch" id="st-sch" aria-checked="true" aria-label="Only reply in active hours"></button></span></div><div class="chips" style="margin-top:.5rem"><button type="button" class="chip sel" aria-pressed="true" onclick="this.classList.toggle('sel');this.setAttribute('aria-pressed',this.classList.contains('sel'))">Mon</button><button type="button" class="chip sel" aria-pressed="true" onclick="this.classList.toggle('sel');this.setAttribute('aria-pressed',this.classList.contains('sel'))">Tue</button><button type="button" class="chip sel" aria-pressed="true" onclick="this.classList.toggle('sel');this.setAttribute('aria-pressed',this.classList.contains('sel'))">Wed</button><button type="button" class="chip sel" aria-pressed="true" onclick="this.classList.toggle('sel');this.setAttribute('aria-pressed',this.classList.contains('sel'))">Thu</button><button type="button" class="chip sel" aria-pressed="true" onclick="this.classList.toggle('sel');this.setAttribute('aria-pressed',this.classList.contains('sel'))">Fri</button><button type="button" class="chip " aria-pressed="false" onclick="this.classList.toggle('sel');this.setAttribute('aria-pressed',this.classList.contains('sel'))">Sat</button><button type="button" class="chip " aria-pressed="false" onclick="this.classList.toggle('sel');this.setAttribute('aria-pressed',this.classList.contains('sel'))">Sun</button></div></details>
+ <details class="card"><summary>Contact whitelist</summary><p class="muted small">Only these contacts can get replies. Start narrow.</p><div class="chips"><span class="chip static ok">Maya (sample)</span><span class="chip static ok">Sample Client A</span><span class="chip static ok">Jo (sample)</span></div></details>
+ <details class="card"><summary>Ignore Group Chats</summary><div class="row"><div><strong>Ignore group chats</strong><div class="muted small">Only one-to-one chats get auto replies. Groups and uncertain chats are skipped.</div></div><span class="sw-wrap"><button type="button" class="sw" role="switch" id="st-grp" aria-checked="true" aria-label="Ignore group chats"></button></span></div></details>
+ <details class="card"><summary>Apps</summary><div class="row"><div><strong>WhatsApp</strong><div class="muted small">Reply to WhatsApp notifications</div></div><span class="sw-wrap"><button type="button" class="sw" role="switch" id="st-wa" aria-checked="true" aria-label="WhatsApp"></button></span></div><div class="row"><div><strong>Instagram</strong><div class="muted small">Reply to Instagram notifications</div></div><span class="sw-wrap"><button type="button" class="sw" role="switch" id="st-ig" aria-checked="true" aria-label="Instagram"></button></span></div><p class="muted small">Replies go only through the notification's inline-reply action. No accessibility service is used.</p></details>
+ <details class="card"><summary>Confirm Before Reply</summary><div class="row"><div><strong>Confirm Before Reply</strong><div class="muted small">A 15 second prompt. If you do nothing, the reply is cancelled and not sent.</div></div><span class="sw-wrap"><button type="button" class="sw" role="switch" id="st-conf" aria-checked="true" aria-label="Confirm Before Reply"></button></span></div></details>
+ <details class="card"><summary>Reply delay range</summary><label class="l" for="dmin">Minimum: <span id="dminv">5 s</span></label><input type="range" id="dmin" min="2" max="60" value="5"><label class="l" for="dmax">Maximum: <span id="dmaxv">20 s</span></label><input type="range" id="dmax" min="2" max="120" value="20"></details>
+ <details class="card"><summary>Duplicate prevention</summary><div class="row"><div><strong>Skip repeated messages</strong><div class="muted small">Do not reply twice to the same text from the same contact.</div></div><span class="sw-wrap"><button type="button" class="sw" role="switch" id="st-dup" aria-checked="true" aria-label="Skip repeated messages"></button></span></div></details>
+ <details class="card"><summary>Daily limits</summary><label class="l" for="lim">Maximum replies per day</label><input class="in" id="lim" type="number" min="1" value="50" inputmode="numeric"></details>
+ <details class="card"><summary>AI Auto-Reply</summary>
+  <div class="row"><div><strong>AI Auto-Reply</strong><div class="muted small">Used when no rule matches.</div></div><span class="sw-wrap"><button type="button" class="sw" role="switch" id="st-ai" aria-checked="true" aria-label="AI Auto-Reply"></button></span></div>
+  <div id="ai-body"><label class="l" id="prov-l">AI Engine and Provider</label>
+  <div class="seg" role="group" aria-labelledby="prov-l" style="flex-wrap:wrap;border-radius:24px"><button type="button" data-prov="groq" aria-pressed="true">Groq Cloud API</button><button type="button" data-prov="gemini" aria-pressed="false">Google Gemini</button><button type="button" data-prov="cf" aria-pressed="false">Cloudflare Workers AI</button><button type="button" data-prov="local" aria-pressed="false">On-Device Llama 3.2 1B</button></div>
+  <div class="prov" data-p="groq"><label class="l" for="k-groq">Groq API key</label><div style="display:flex;gap:.5rem"><input class="in mask" id="k-groq" type="password" value="sample-not-a-key" autocomplete="off" aria-describedby="k-groq-n"><button type="button" class="mini tokshow" data-for="k-groq">Show</button></div><p class="muted small" id="k-groq-n">Stored encrypted on Android, never sent to GitHub.</p></div>
+  <div class="prov" data-p="gemini" hidden=""><label class="l" for="k-gem">Gemini API key</label><div style="display:flex;gap:.5rem"><input class="in mask" id="k-gem" type="password" value="sample-not-a-key" autocomplete="off" aria-describedby="k-gem-n"><button type="button" class="mini tokshow" data-for="k-gem">Show</button></div><p class="muted small" id="k-gem-n">Stored encrypted on Android, never sent to GitHub.</p></div>
+  <div class="prov" data-p="cf" hidden=""><label class="l" for="cf-acc">Account ID</label><input class="in" id="cf-acc" placeholder="Sample account ID" autocomplete="off"><label class="l" for="k-cf">API token</label><div style="display:flex;gap:.5rem"><input class="in mask" id="k-cf" type="password" value="sample-not-a-key" autocomplete="off" aria-describedby="k-cf-n"><button type="button" class="mini tokshow" data-for="k-cf">Show</button></div><p class="muted small" id="k-cf-n">Stored encrypted on Android, never sent to GitHub.</p><label class="l" for="cf-model">Model</label><select class="in" id="cf-model"><option>@cf/qwen/qwen3-30b-a3b-fp8</option><option>@cf/openai/gpt-oss-20b</option></select></div>
+  <div class="prov" data-p="local" hidden=""><p class="muted small">Runs on this phone. Pick a model and download it first.</p><div class="card" style="background:var(--bg)"><strong>Llama 3.2 1B Instruct</strong><div class="muted small">About 800 MB</div><div class="prog dlprog"><i style="width:0"></i></div><div class="row"><span class="dlst small muted">Not downloaded</span><button type="button" class="btn sec" data-dl="">Download</button></div></div><div class="card" style="background:var(--bg)"><strong>Qwen 2.5 1.5B Instruct</strong><div class="muted small">About 980 MB</div><div class="prog dlprog"><i style="width:0"></i></div><div class="row"><span class="dlst small muted">Not downloaded</span><button type="button" class="btn sec" data-dl="">Download</button></div></div></div>
+  <div class="row"><div><strong>Local fallback</strong><div class="muted small">Use the on-device model if the cloud provider fails.</div></div><span class="sw-wrap"><button type="button" class="sw" role="switch" id="st-fb" aria-checked="false" aria-label="Local fallback"></button></span></div></div></details>
+ <details class="card"><summary>System Prompt and Persona</summary><label class="l" for="persona">Persona</label><textarea class="in" id="persona">Friendly, short, and polite. Never promise anything I have not agreed to.</textarea></details>
+ <details class="card"><summary>Training memory</summary><div class="row"><div><strong>Use trained replies</strong><div class="muted small">Replies you marked in Chat guide the AI.</div></div><span class="sw-wrap"><button type="button" class="sw" role="switch" id="st-mem" aria-checked="true" aria-label="Use trained replies"></button></span></div></details>
+ <details class="card"><summary>Conversation context</summary><div class="row"><div><strong>Include recent messages</strong><div class="muted small">Send the last few messages of the chat to the AI.</div></div><span class="sw-wrap"><button type="button" class="sw" role="switch" id="st-ctx" aria-checked="true" aria-label="Include recent messages"></button></span></div></details>
+</section>
+
+<section class="scr" id="s-setup" aria-label="Setup">
+ <button type="button" class="back" data-go="dash"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg> Dashboard</button>
+ <h2>Set up Replier</h2>
+ <div class="card"><p class="small muted" id="setupn" style="margin:0 0 .5rem">0 of 7 done</p><div class="prog"><i id="setupbar" style="width: 0%;"></i></div><div class="step"><button type="button" class="dot" aria-pressed="false" aria-label="Mark done: Grant Notification Access"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><div><strong>Grant Notification Access</strong><div class="muted small">Replier reads incoming notifications. It uses no accessibility service.</div></div></div><div class="step"><button type="button" class="dot" aria-pressed="false" aria-label="Mark done: Allow Replier notifications"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><div><strong>Allow Replier notifications</strong><div class="muted small">Needed for confirmation prompts and status.</div></div></div><div class="step"><button type="button" class="dot" aria-pressed="false" aria-label="Mark done: Check battery optimization"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><div><strong>Check battery optimization</strong><div class="muted small">Exclude Replier so Android does not stop it.</div></div></div><div class="step"><button type="button" class="dot" aria-pressed="false" aria-label="Mark done: Keep Confirm Before Reply on"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><div><strong>Keep Confirm Before Reply on</strong><div class="muted small">Every reply waits for your approval.</div></div></div><div class="step"><button type="button" class="dot" aria-pressed="false" aria-label="Mark done: Keep Ignore Group Chats on"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><div><strong>Keep Ignore Group Chats on</strong><div class="muted small">Only one-to-one chats get replies. Groups and uncertain chats are skipped.</div></div></div><div class="step"><button type="button" class="dot" aria-pressed="false" aria-label="Mark done: Narrow the contact whitelist"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><div><strong>Narrow the contact whitelist</strong><div class="muted small">Start with a few trusted contacts.</div></div></div><div class="step"><button type="button" class="dot" aria-pressed="false" aria-label="Mark done: Enable apps"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button><div><strong>Enable apps</strong><div class="muted small">Turn on WhatsApp, Instagram, or both.</div></div></div>
+ <div class="btnrow"><button type="button" class="btn" data-go="dash">Finish setup</button></div></div>
+</section>
+</div>
+<button type="button" class="fab" id="fab"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg> Add Rule</button>
+<nav class="nav" id="nav" aria-label="Main"><button type="button" data-go="dash" aria-label="Dashboard" aria-current="page"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z"></path></svg><span>Dashboard</span></button><button type="button" data-go="rules" aria-label="Rules"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M3.5 6h.01M3.5 12h.01M3.5 18h.01"></path></svg><span>Rules</span></button><button type="button" data-go="chat" aria-label="Chat"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span>Chat</span></button><button type="button" data-go="logs" aria-label="Logs"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg><span>Logs</span></button><button type="button" data-go="notes" aria-label="Notes"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6"></path></svg><span>Notes</span></button></nav>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t" tabindex="-1">
+ <div class="grab" aria-hidden="true"></div>
+ <h3 id="sheet-t">Send this reply?</h3>
+ <div class="ring-row" id="ctimer"><div class="ring" id="cring" role="img" aria-label="Confirmation countdown"><svg viewBox="0 0 80 80" aria-hidden="true"><circle class="tr" cx="40" cy="40" r="36"></circle><circle class="fg" cx="40" cy="40" r="36"></circle></svg><span>15</span></div><p class="small" style="margin:0"><strong>Not sent if you do nothing.</strong> After 15 seconds this reply is cancelled.</p></div>
+ <p class="muted small" style="margin:.8rem 0 .2rem">Maya (sample) on WhatsApp wrote</p>
+ <div class="bub ai" style="max-width:100%;background:var(--bg)">Are we still on for 6?</div>
+ <label class="l" for="cedit">Proposed reply</label><textarea class="in" id="cedit" readonly="" style="min-height:4.5rem"></textarea>
+ <div class="chip static" id="cres" hidden="" role="status" style="height:auto;padding:.5rem .8rem;white-space:normal;margin-top:.6rem"></div>
+ <div class="btnrow"><button type="button" class="btn act" id="csend">Send</button><button type="button" class="btn sec act" id="cedit-btn">Edit</button><button type="button" class="btn dng act" id="ccancel">Cancel</button><button type="button" class="btn ter" id="cclose">Close preview</button></div>
+</div>
+</div></div>
+<p class="foot-note">This is a design draft, not the real app. All names, messages and numbers are sample data. Nothing is sent, stored, or connected to WhatsApp or Instagram. Settings lives behind the gear icon, top right.</p>
+<script>
+(function(){
+var $=function(s,r){return (r||document).querySelector(s)},$$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+var phone=$('#phone'),cur='dash',MAIN=['dash','rules','chat','logs','notes'];
+var TITLES={dash:'Replier',rules:'Rules',ruleedit:'Rule',chat:'Chat test',logs:'Logs',notes:'Notes',settings:'Settings',setup:'Set up Replier'};
+function go(id){
+  $$('.scr').forEach(function(s){s.classList.toggle('on',s.id==='s-'+id)});
+  cur=id;
+  $$('.nav button').forEach(function(b){if(b.dataset.go===id)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current')});
+  $('#nav').classList.toggle('hide',MAIN.indexOf(id)<0);
+  $('#fab').classList.toggle('show',id==='rules');
+  $('#bartitle').textContent=TITLES[id];
+  var sc=$('#s-'+id);if(sc)sc.scrollTop=0;
+  var h=$('#s-'+id+' h2');if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:true})}
+}
+document.addEventListener('click',function(e){
+  var g=e.target.closest('[data-go]');if(g&&phone.contains(g)){go(g.dataset.go)}
+});
+/* themes */
+var themes=['light','dusk','oled'],names={light:'Light',dusk:'Dusk',oled:'Dark OLED'};
+function setTheme(t){
+  phone.dataset.theme=t;
+  $$('[data-theme-pick]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.themePick===t))});
+  $('#themelabel').textContent=names[t];
+}
+$('#themebtn').addEventListener('click',function(){setTheme(themes[(themes.indexOf(phone.dataset.theme)+1)%3])});
+$$('[data-theme-pick]').forEach(function(b){b.addEventListener('click',function(){setTheme(b.dataset.themePick)})});
+/* generic switches */
+document.addEventListener('click',function(e){
+  var s=e.target.closest('.sw,.msw');if(!s||!phone.contains(s))return;
+  var on=s.getAttribute('aria-checked')!=='true';s.setAttribute('aria-checked',String(on));
+  if(s.id==='master')masterChange(on);
+  if(s.id==='st-ai')$('#ai-body').hidden=!on;
+});
+function masterChange(on){
+  $('#hero').classList.toggle('off',!on);
+  $('#herostate').textContent=on?'On':'Off';
+  $('#herostatus').textContent=on?'Listening to WhatsApp, Instagram':'Paused. Incoming messages get no reply.';
+  $('#analysis-card').style.opacity=on?1:.6;
+}
+/* segmented */
+document.addEventListener('click',function(e){
+  var b=e.target.closest('.seg button');if(!b)return;
+  $$('button',b.parentNode).forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});
+  if(b.dataset.prov)showProv(b.dataset.prov);
+});
+function showProv(p){$$('.prov').forEach(function(x){x.hidden=x.dataset.p!==p})}
+/* rings */
+function ring(el,frac){var c=2*Math.PI*36;var f=$('.fg',el);f.style.strokeDasharray=c;f.style.strokeDashoffset=c*(1-frac)}
+var aT=100,aTimer;
+function aTick(){
+  var el=$('#aring');ring(el,aT/100);$('span',el).textContent=aT;
+  el.classList.toggle('exp',aT<=0);
+  $('#atext').textContent=aT>0?'Analyzing a sample message from Maya. A reply can only be scheduled while this is running.':'Result expired. An expired analysis cannot schedule a reply.';
+  if(aT<=0){clearInterval(aTimer);aTimer=null;$('#arestart').hidden=false}
+}
+function aStart(){aT=100;$('#arestart').hidden=true;aTick();clearInterval(aTimer);aTimer=setInterval(function(){aT--;aTick()},1000)}
+$('#arestart').addEventListener('click',aStart);
+/* confirmation sheet */
+var cT=15,cTimer,sheetFrom=null;
+function cTick(){
+  var el=$('#cring');ring(el,cT/15);$('span',el).textContent=cT;
+  if(cT<=0){clearInterval(cTimer);cTimer=null;finish('Cancelled. Nothing was sent because nobody answered in time.','bad')}
+}
+function finish(msg,kind){
+  clearInterval(cTimer);cTimer=null;
+  var r=$('#cres');r.textContent=msg;r.className='chip static '+kind;r.hidden=false;r.setAttribute('tabindex','-1');r.focus();
+  $$('#sheet .act').forEach(function(b){b.disabled=true});
+  $('#ctimer').hidden=true;
+}
+function openSheet(){
+  sheetFrom=document.activeElement;
+  $('#cres').hidden=true;$('#ctimer').hidden=false;
+  $$('#sheet .act').forEach(function(b){b.disabled=false});
+  $('#cedit').readOnly=true;$('#cedit').value='Hi Maya! Yes, 6 pm works. See you at the cafe.';
+  $('#scrim').classList.add('on');$('#sheet').classList.add('on');
+  cT=15;cTick();clearInterval(cTimer);cTimer=setInterval(function(){cT--;cTick()},1000);
+  $('#sheet').focus();
+}
+function closeSheet(){
+  clearInterval(cTimer);cTimer=null;
+  $('#scrim').classList.remove('on');$('#sheet').classList.remove('on');
+  if(sheetFrom)sheetFrom.focus();
+}
+$('#previewbtn').addEventListener('click',openSheet);
+$('#scrim').addEventListener('click',closeSheet);
+$('#cclose').addEventListener('click',closeSheet);
+$('#csend').addEventListener('click',function(){finish('Reply sent (demo only, no real message left this page).','ok');bump('d-sent',1)});
+$('#cedit-btn').addEventListener('click',function(){var t=$('#cedit');t.readOnly=false;t.focus()});
+$('#ccancel').addEventListener('click',function(){finish('Cancelled. Nothing was sent.','bad')});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&$('#sheet').classList.contains('on'))closeSheet()});
+function bump(id,n){var e=$('#'+id);e.textContent=String(Number(e.textContent)+n);var s=Number($('#d-sent').textContent);$('#limitv').textContent=s+' of 50';$('#limitbar').style.width=Math.min(100,s*2)+'%'}
+/* rules */
+var rules=[
+ {id:1,t:'hours',r:'We are open 9 to 5, Monday to Friday.',m:'Contains',cs:false,c:'Anyone',en:true},
+ {id:2,t:'price list',r:'I will send the price list shortly.',m:'Contains',cs:false,c:'Sample Client A',en:true},
+ {id:3,t:'OK?',r:'Yes, all good.',m:'Exact',cs:true,c:'Anyone',en:false}
+],nid=4,editing=null,rq='';
+function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function renderRules(){
+  var box=$('#rulelist');box.innerHTML='';
+  var list=rules.filter(function(r){return (r.t+' '+r.r+' '+r.c).toLowerCase().indexOf(rq)>-1});
+  $('#rulecount').textContent=rules.length+' rules, '+rules.filter(function(r){return r.en}).length+' enabled';
+  if(!list.length){box.innerHTML='<div class="card muted">No rules match. Clear the search or add a rule.</div>';return}
+  list.forEach(function(r){
+    var d=document.createElement('div');d.className='card';
+    d.innerHTML='<div class="row"><div><div class="eyebrow muted">When a message</div><strong>'+esc(r.t)+'</strong></div><span class="sw-wrap"><button type="button" class="sw" role="switch" aria-checked="'+r.en+'" aria-label="Enable rule '+esc(r.t)+'" data-tog="'+r.id+'"></button></span></div>'+
+    '<p class="muted" style="margin:.4rem 0 .6rem">Reply: '+esc(r.r)+'</p><div class="chips"><span class="chip static ok">'+r.m+' Match</span><span class="chip static">'+esc(r.c)+'</span>'+(r.cs?'<span class="chip static">Case sensitive</span>':'')+'</div>'+
+    '<div class="btnrow"><button class="btn sec" data-edit="'+r.id+'" type="button">Edit</button><button class="btn ter" data-del="'+r.id+'" type="button">Delete</button></div>';
+    box.appendChild(d)
+  })
+}
+$('#rulelist').addEventListener('click',function(e){
+  var t=e.target.closest('[data-tog]'),ed=e.target.closest('[data-edit]'),dl=e.target.closest('[data-del]');
+  if(t){var r=rules.filter(function(x){return x.id==t.dataset.tog})[0];r.en=!r.en;$('#rulecount').textContent=rules.length+' rules, '+rules.filter(function(r){return r.en}).length+' enabled';}
+  if(ed)openEdit(Number(ed.dataset.edit));
+  if(dl){rules=rules.filter(function(x){return x.id!=dl.dataset.del});renderRules();$('#rulelist').focus()}
+});
+$('#rulesearch').addEventListener('input',function(e){rq=e.target.value.toLowerCase();renderRules()});
+function setSeg(id,v){$$('#'+id+' button').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.v===v))})}
+function getSeg(id){return $('#'+id+' button[aria-pressed=true]').dataset.v}
+function openEdit(id){
+  editing=id;var r=id?rules.filter(function(x){return x.id===id})[0]:{t:'',r:'',m:'Contains',cs:false,c:'',en:false};
+  $('#rf-title').textContent=id?'Edit rule':'Add rule';
+  $('#rf-t').value=r.t;$('#rf-r').value=r.r;$('#rf-c').value=r.c==='Anyone'?'':r.c;
+  setSeg('rf-m',r.m);$('#rf-cs').setAttribute('aria-checked',String(r.cs));$('#rf-en').setAttribute('aria-checked',String(r.en));
+  $$('.fe').forEach(function(x){x.textContent=''});$$('#s-ruleedit .in').forEach(function(x){x.removeAttribute('aria-invalid')});
+  go('ruleedit');
+}
+$('#fab').addEventListener('click',function(){openEdit(null)});
+$('#rf-save').addEventListener('click',function(){
+  var t=$('#rf-t'),r=$('#rf-r'),bad=false;
+  [[t,'Enter the trigger text.'],[r,'Enter the reply text.']].forEach(function(p){
+    var ok=p[0].value.trim().length>0;p[0].setAttribute('aria-invalid',String(!ok));
+    $('#'+p[0].id+'-e').textContent=ok?'':p[1];if(!ok){bad=bad||p[0];}
+  });
+  if(bad){bad.focus();return}
+  var o={t:t.value.trim(),r:r.value.trim(),m:getSeg('rf-m'),cs:$('#rf-cs').getAttribute('aria-checked')==='true',c:$('#rf-c').value.trim()||'Anyone',en:$('#rf-en').getAttribute('aria-checked')==='true'};
+  if(editing){rules.forEach(function(x){if(x.id===editing){x.t=o.t;x.r=o.r;x.m=o.m;x.cs=o.cs;x.c=o.c;x.en=o.en}})}
+  else{o.id=nid++;rules.unshift(o)}
+  renderRules();go('rules');
+});
+renderRules();
+/* chat */
+var canned=['Thanks for the message! I will get back to you this evening.','Sure, 6 pm works for me. See you then.','I am away right now. I will reply when I am back.'],ci=0,lastAi=null;
+function addBub(txt,who){var b=document.createElement('div');b.className='bub '+who;b.textContent=txt;$('#chatlog').appendChild(b);b.scrollIntoView({block:'nearest'});return b}
+function chatSend(){
+  var i=$('#chatin'),v=i.value.trim();if(!v){i.focus();return}
+  addBub(v,'me');i.value='';
+  setTimeout(function(){lastAi=addBub(canned[ci++%3],'ai');$('#train').disabled=false;$('#train').textContent='Train this reply'},500);
+}
+$('#chatsend').addEventListener('click',chatSend);
+$('#chatin').addEventListener('keydown',function(e){if(e.key==='Enter')chatSend()});
+$('#train').addEventListener('click',function(){this.textContent='Saved to training memory (sample)';this.disabled=true});
+/* logs */
+var logs=[
+ {a:'wa',n:'Maya (sample)',i:'Are we still on for 6?',r:'Yes, 6 pm works. See you then.',s:'Sent',src:'AI',t:'10:42'},
+ {a:'ig',n:'Sample Client A',i:'What are your hours?',r:'We are open 9 to 5, Monday to Friday.',s:'Sent',src:'Rule',t:'09:15'},
+ {a:'wa',n:'Jo (sample)',i:'Can you send the price list?',r:'I will send the price list shortly.',s:'Attempted',src:'Rule',t:'08:58'},
+ {a:'ig',n:'Sam (sample)',i:'Call me when free',r:'I am away right now. I will reply when I am back.',s:'Failed',src:'AI',t:'Yesterday'}
+],lf='All';
+function renderLogs(){
+  var box=$('#loglist');box.innerHTML='';
+  var l=logs.filter(function(x){return lf==='All'||x.s===lf});
+  if(!l.length)box.innerHTML='<div class="card muted">No entries with this status.</div>';
+  l.forEach(function(x){
+    var k=x.s==='Sent'?'ok':x.s==='Failed'?'bad':'wait';
+    var d=document.createElement('div');d.className='card';
+    d.innerHTML='<div class="item"><div class="app '+x.a+'" aria-hidden="true">'+(x.a==='wa'?'W':'I')+'</div><div class="body"><div class="row" style="min-height:0"><strong>'+esc(x.n)+'</strong><span class="muted small">'+x.t+'</span></div><p class="muted small">'+(x.a==='wa'?'WhatsApp':'Instagram')+'</p><p>In: '+esc(x.i)+'</p><p>Out: '+esc(x.r)+'</p><div class="chips" style="margin-top:.4rem"><span class="chip static '+k+'">'+x.s+'</span><span class="chip static">Source: '+x.src+'</span></div></div></div>';
+    box.appendChild(d)
+  })
+}
+$('#logfilters').addEventListener('click',function(e){
+  var b=e.target.closest('.chip');if(!b)return;lf=b.dataset.f;
+  $$('.chip',this).forEach(function(c){c.classList.toggle('sel',c===b);c.setAttribute('aria-pressed',String(c===b))});renderLogs()
+});
+renderLogs();
+/* notes */
+var notes=[
+ {x:'Dentist appointment Thursday at 4:30 pm',w:'Thursday, 4:30 pm',rem:true,from:'Maya (sample)'},
+ {x:'Bring the signed form tomorrow morning',w:'Tomorrow, morning',rem:false,from:'Jo (sample)'}
+];
+function detect(s){
+  var m=s.match(/(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i),t=s.match(/(\d{1,2}(:\d\d)?\s?(am|pm))/i);
+  var o=[];if(m)o.push(m[0][0].toUpperCase()+m[0].slice(1).toLowerCase());if(t)o.push(t[0]);return o.join(', ')
+}
+function renderNotes(){
+  var box=$('#notelist');box.innerHTML='';
+  notes.forEach(function(n,i){
+    var d=document.createElement('div');d.className='card';
+    d.innerHTML='<p style="margin-bottom:.4rem;overflow-wrap:anywhere"><strong>'+esc(n.x)+'</strong></p><div class="chips"><span class="chip static '+(n.w?'wait':'')+'">'+(n.w?'Detected: '+esc(n.w):'No date or time found')+'</span><span class="chip static">From '+esc(n.from)+'</span></div><div class="row" style="margin-top:.4rem"><span>Add reminder</span><span class="sw-wrap"><button type="button" class="sw" role="switch" aria-checked="'+n.rem+'" aria-label="Add reminder for note '+(i+1)+'" data-nrem="'+i+'"></button></span></div>';
+    box.appendChild(d)
+  })
+}
+$('#notelist').addEventListener('click',function(e){var b=e.target.closest('[data-nrem]');if(b)notes[b.dataset.nrem].rem=!notes[b.dataset.nrem].rem});
+$('#noteadd').addEventListener('click',function(){
+  var i=$('#notein'),v=i.value.trim();if(!v){$('#notein-e').textContent='Paste or type a message first.';i.setAttribute('aria-invalid','true');i.focus();return}
+  i.removeAttribute('aria-invalid');$('#notein-e').textContent='';
+  notes.unshift({x:v,w:detect(v),rem:false,from:'Pasted text'});i.value='';renderNotes()
+});
+renderNotes();
+/* settings: delay slider, daily limit, downloads */
+function rng(id,out,fmt){var r=$('#'+id);function u(){$('#'+out).textContent=fmt(r.value)}r.addEventListener('input',u);u()}
+rng('dmin','dminv',function(v){return v+' s'});rng('dmax','dmaxv',function(v){return v+' s'});
+$('#dmin').addEventListener('input',function(){if(+$('#dmax').value<+this.value){$('#dmax').value=this.value;$('#dmaxv').textContent=this.value+' s'}});
+$('#dmax').addEventListener('input',function(){if(+$('#dmin').value>+this.value){$('#dmin').value=this.value;$('#dminv').textContent=this.value+' s'}});
+$$('[data-dl]').forEach(function(b){b.addEventListener('click',function(){
+  var box=b.parentNode,p=$('.prog i',box),st=$('.dlst',box),n=0;
+  if(b.dataset.state==='ready'){b.textContent='Download';b.dataset.state='';p.style.width='0';st.textContent='Not downloaded';return}
+  b.disabled=true;var t=setInterval(function(){n+=7;p.style.width=Math.min(n,100)+'%';st.textContent=Math.min(n,100)+'% downloaded';
+    if(n>=100){clearInterval(t);b.disabled=false;b.textContent='Remove';b.dataset.state='ready';st.textContent='Ready (sample)'}},250)
+})});
+$$('.tokshow').forEach(function(b){b.addEventListener('click',function(){var i=$('#'+b.dataset.for);var show=i.type==='password';i.type=show?'text':'password';b.textContent=show?'Hide':'Show'})});
+/* setup */
+function setupCount(){var n=$$('.dot[aria-pressed=true]').length;$('#setupn').textContent=n+' of 7 done';$('#setupbar').style.width=(n/7*100)+'%';$('#chk-n').textContent=n+' of 7 steps done';$('#chk-bar').style.width=(n/7*100)+'%'}
+$$('.dot').forEach(function(b){b.addEventListener('click',function(){b.setAttribute('aria-pressed',String(b.getAttribute('aria-pressed')!=='true'));setupCount()})});
+setupCount();
+setTheme('light');aStart();go('dash');
+})();
+</script></main>
+  <footer class="pally-shell pally-footer"><p><a href="mailto:support@pally.com?subject=Report%20page%20replier-ui-draft">Report this page</a></p></footer>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js/vce701823e78c4301a35b7e07294d87301792088814092" integrity="sha512-UKNk8GbxkABxKcXYuLkO16EleLGUkcvJWtpSNmExE0Too3ZaFAxTscNWEc1OdAv5/BikHawapSCaiD2XCmp+Bw==" data-cf-beacon="{&quot;version&quot;:&quot;2024.11.0&quot;,&quot;token&quot;:&quot;75f86c783dad4de3bb2bb3be38f3c3f5&quot;,&quot;r&quot;:1,&quot;spa&quot;:2}" crossorigin="anonymous"></script>
+
+<script>
+document.addEventListener("click", function (event) {
+  var link = event.target instanceof Element ? event.target.closest("a[href],area[href]") : null;
+  if (!link || link.hasAttribute("target")) return;
+  var url;
+  try { url = new URL(link.href); } catch (_) { return; }
+  var web = url.protocol === "http:" || url.protocol === "https:";
+  if (web ? url.origin !== location.origin : !/^(javascript|data|blob|about):$/.test(url.protocol)) {
+    link.target = "_blank";
+  }
+}, true);
+</script></body></html>
