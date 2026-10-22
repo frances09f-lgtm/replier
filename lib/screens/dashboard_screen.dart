@@ -31,10 +31,6 @@ class DashboardScreen extends ConsumerWidget {
       if (settings.whatsappEnabled) 'WhatsApp',
       if (settings.instagramEnabled) 'Instagram',
     ];
-    final chips = <String>[
-      'Confirm Before Reply ${settings.confirmBeforeReply ? 'ON' : 'OFF'}',
-      if (settings.ignoreGroupChats) 'Groups ignored',
-    ];
 
     return Scaffold(
       body: RefreshIndicator(
@@ -70,7 +66,6 @@ class DashboardScreen extends ConsumerWidget {
                       ? 'Listening to notifications'
                       : 'Listening to ${apps.join(', ')}')
                   : 'Paused. Incoming messages get no reply.',
-              chips: chips,
             ),
             const SizedBox(height: 12),
 
