@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/settings_provider.dart';
-import '../theme/draft_theme.dart';
 import '../theme/draft_widgets.dart';
 import 'dashboard_screen.dart';
 import 'rules_screen.dart';

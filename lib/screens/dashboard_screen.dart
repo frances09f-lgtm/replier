@@ -12,10 +12,6 @@ import '../utils/ai_engine_display.dart';
 import '../widgets/pipeline_status_card.dart';
 import '../theme/draft_theme.dart';
 import '../theme/draft_widgets.dart';
-import 'rules_screen.dart';
-import 'logs_screen.dart';
-import 'settings_screen.dart';
-import 'chat_screen.dart';
 import 'notes_screen.dart';
 import '../providers/note_provider.dart';
 
