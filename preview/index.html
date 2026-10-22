@@ -121,6 +121,7 @@ position:relative;width:100%;max-width:420px;height:min(860px,calc(100dvh - 7.5r
 .ib{width:3rem;height:3rem;flex:none;border:0;border-radius:50%;background:var(--s1);color:var(--tx);display:grid;place-items:center;cursor:pointer;transition:transform 180ms cubic-bezier(.3,1.4,.5,1),background-color 150ms}
 .ib:hover{background:var(--s2)}
 .ib:active,.btn:active,.fab:active,.nav button:active,.card.tap:active,.chip:active{transform:scale(.93)}
+.i-sun{display:none}.phone[data-theme=dusk] .i-moon{display:none}.phone[data-theme=dusk] .i-sun{display:inline}.phone[data-theme=oled] .i-moon{display:none}.phone[data-theme=oled] .i-sun{display:inline}
 .phone button:focus-visible,.phone input:focus-visible,.phone textarea:focus-visible,.phone select:focus-visible,.phone summary:focus-visible{outline:3px solid var(--pri);outline-offset:2px}
 .ic{width:1.4rem;height:1.4rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .scr-wrap{flex:1;min-height:0;position:relative}
@@ -247,8 +248,8 @@ input[type=range]{width:100%;accent-color:var(--pri);min-height:2.75rem}
 <div class="ribbon">Draft preview with sample data</div>
 <header class="hdr">
  <div class="bar"><span aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg></span><b id="bartitle">Replier</b></div>
- <button type="button" class="ib" id="themebtn" aria-label="Switch theme"><span aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"></path></svg></span></button>
- <button type="button" class="ib" data-go="settings" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg></button>
+ <button type="button" class="ib" id="themebtn" aria-label="Switch theme"><span class="i-moon" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 13A9 9 0 1 1 11 3a7 7 0 0 0 10 10z"></path></svg></span><span class="i-sun" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg></span></button>
+ <button type="button" class="ib" data-go="settings" aria-label="Settings"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
 </header>
 <div class="sr" aria-live="polite">Theme: <span id="themelabel">Light</span></div>
 <div class="scr-wrap">
