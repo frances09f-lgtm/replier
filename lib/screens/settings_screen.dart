@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_settings.dart';
+import '../theme/draft_theme.dart';
 import '../providers/settings_provider.dart';
 
 /// Screen for app settings
@@ -60,9 +61,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // Permissions section
           Text(
             'Permissions',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: DraftText.eyebrow(DraftColors.of(context).mut),
           ),
           const SizedBox(height: 16),
 
@@ -99,9 +98,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // App settings section
           Text(
             'App Settings',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: DraftText.eyebrow(DraftColors.of(context).mut),
           ),
           const SizedBox(height: 16),
 
@@ -167,9 +164,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // Schedule section
           Text(
             'Schedule',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: DraftText.eyebrow(DraftColors.of(context).mut),
           ),
           const SizedBox(height: 8),
           Text(
@@ -245,9 +240,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 24),
           Text(
             'AI Auto-Reply',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: DraftText.eyebrow(DraftColors.of(context).mut),
           ),
           const SizedBox(height: 8),
           Text(
@@ -530,9 +523,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // Appearance section
           Text(
             'Appearance',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: DraftText.eyebrow(DraftColors.of(context).mut),
           ),
           const SizedBox(height: 16),
 
