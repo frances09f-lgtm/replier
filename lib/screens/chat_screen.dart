@@ -182,13 +182,13 @@ class _ChatBubble extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 color: isUser
-                    ? colorScheme.primaryContainer
+                    ? colorScheme.primary
                     : colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isUser ? 16 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 16),
+                  topLeft: const Radius.circular(22),
+                  topRight: const Radius.circular(22),
+                  bottomLeft: Radius.circular(isUser ? 22 : 6),
+                  bottomRight: Radius.circular(isUser ? 6 : 22),
                 ),
               ),
               child: Column(
@@ -243,7 +243,7 @@ class _ChatBubble extends ConsumerWidget {
                     style: TextStyle(
                       fontSize: 15,
                       color: isUser
-                          ? colorScheme.onPrimaryContainer
+                          ? colorScheme.onPrimary
                           : colorScheme.onSurface,
                     ),
                   ),

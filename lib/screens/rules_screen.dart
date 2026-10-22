@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/draft_theme.dart';
+import '../theme/draft_widgets.dart';
 import '../models/rule.dart';
 import '../providers/rule_provider.dart';
 import 'add_edit_rule_screen.dart';
@@ -172,95 +173,82 @@ class _RuleCard extends StatelessWidget {
         ? senders.first
         : senders.take(2).join(', ') + (senders.length > 2 ? '...' : '');
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: Switch(
-          value: rule.isEnabled,
-          onChanged: (_) => onToggle(),
-        ),
-        title: Text(
-          triggerLabel,
-          style: TextStyle(
-            decoration: rule.isEnabled ? null : TextDecoration.lineThrough,
-          ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (triggers.length > 1)
-              Padding(
-                padding: const EdgeInsets.only(top: 2, bottom: 2),
-                child: Text(
-                  '${triggers.length} triggers',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            Text('\u2192 $replyLabel'),
-            if (replies.length > 1)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  '${replies.length} replies (random)',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
-                ),
-              ),
-            if (senders.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
+    final c = DraftColors.of(context);
+    return DraftCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.person, size: 12, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        senderLabel,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[600],
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    Text('WHEN A MESSAGE', style: DraftText.eyebrow(c.mut)),
+                    const SizedBox(height: 4),
+                    Text(
+                      triggerLabel,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: DraftText.body(16, c.tx,
+                          weight: FontWeight.w700),
                     ),
-                    if (senders.length > 1)
-                      Text(
-                        ' (${senders.length})',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[600],
-                        ),
-                      ),
                   ],
                 ),
               ),
-          ],
-        ),
-        isThreeLine:
-            triggers.length > 1 || replies.length > 1 || senders.isNotEmpty,
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: onEdit,
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: onDelete,
-            ),
-          ],
-        ),
+              const SizedBox(width: 10),
+              DraftSwitch(
+                value: rule.isEnabled,
+                onChanged: (_) => onToggle(),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('Reply: $replyLabel', style: DraftText.body(14, c.mut)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _chip(c, 'Contains Match', ok: true),
+              if (senders.isEmpty)
+                _chip(c, 'Anyone')
+              else
+                _chip(
+                    c,
+                    senderLabel +
+                        (senders.length > 1 ? ' (${senders.length})' : '')),
+              if (triggers.length > 1)
+                _chip(c, '${triggers.length} triggers'),
+              if (replies.length > 1)
+                _chip(c, '${replies.length} replies (random)'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              DraftButton.secondary('Edit', onPressed: onEdit),
+              const SizedBox(width: 8),
+              DraftButton.tertiary('Delete', onPressed: onDelete),
+            ],
+          ),
+        ],
       ),
     );
   }
+
+  Widget _chip(DraftColors c, String label, {bool ok = false}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: ok ? c.pc : Colors.transparent,
+          border:
+              Border.all(color: ok ? Colors.transparent : c.out, width: 1.5),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(label,
+            style:
+                DraftText.body(13, ok ? c.onpc : c.tx, weight: FontWeight.w500)),
+      );
 }
 
 class RuleSearchDelegate extends SearchDelegate<String> {
