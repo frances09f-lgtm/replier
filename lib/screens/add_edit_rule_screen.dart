@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../theme/draft_theme.dart';
+import '../theme/draft_widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/rule.dart';
 import '../providers/rule_provider.dart';
@@ -186,6 +188,7 @@ class _AddEditRuleScreenState extends ConsumerState<AddEditRuleScreen> {
   Widget build(BuildContext context) {
     final isEditing = widget.rule != null;
     final colorScheme = Theme.of(context).colorScheme;
+    final c = DraftColors.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -197,14 +200,14 @@ class _AddEditRuleScreenState extends ConsumerState<AddEditRuleScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             // ── Trigger texts section ─────────────────────────────────────
+            DraftCard(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
             Row(
               children: [
-                Text(
-                  'Trigger Texts',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
+                Text('TRIGGER TEXTS', style: DraftText.eyebrow(c.mut)),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: _addTrigger,
@@ -217,7 +220,7 @@ class _AddEditRuleScreenState extends ConsumerState<AddEditRuleScreen> {
             Text(
               'The rule fires when any of these match the incoming message.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
+                    color: c.mut,
                   ),
             ),
             const SizedBox(height: 12),
@@ -259,18 +262,21 @@ class _AddEditRuleScreenState extends ConsumerState<AddEditRuleScreen> {
                 ),
               );
             }),
+                ],
+              ),
+            ),
 
-            const Divider(height: 32),
+            const SizedBox(height: 14),
 
             // ── Reply texts section ───────────────────────────────────────
+            DraftCard(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
             Row(
               children: [
-                Text(
-                  'Reply Texts',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
+                Text('REPLY TEXTS', style: DraftText.eyebrow(c.mut)),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: _addReply,
@@ -283,7 +289,7 @@ class _AddEditRuleScreenState extends ConsumerState<AddEditRuleScreen> {
             Text(
               'One reply is randomly selected when the rule fires.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
+                    color: c.mut,
                   ),
             ),
             const SizedBox(height: 12),
@@ -326,18 +332,21 @@ class _AddEditRuleScreenState extends ConsumerState<AddEditRuleScreen> {
                 ),
               );
             }),
+                ],
+              ),
+            ),
 
-            const Divider(height: 32),
+            const SizedBox(height: 14),
 
             // ── Sender names section ──────────────────────────────────────
+            DraftCard(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
             Row(
               children: [
-                Text(
-                  'Specific Contacts',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
+                Text('SPECIFIC CONTACTS', style: DraftText.eyebrow(c.mut)),
                 const Spacer(),
                 TextButton.icon(
                   onPressed: _addSender,
@@ -350,7 +359,7 @@ class _AddEditRuleScreenState extends ConsumerState<AddEditRuleScreen> {
             Text(
               'Leave empty to reply to everyone. Add names to reply only to specific contacts.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
+                    color: c.mut,
                   ),
             ),
             const SizedBox(height: 12),
@@ -385,16 +394,19 @@ class _AddEditRuleScreenState extends ConsumerState<AddEditRuleScreen> {
                 ),
               );
             }),
+                ],
+              ),
+            ),
 
-            const Divider(height: 32),
+            const SizedBox(height: 14),
 
             // ── Match options ─────────────────────────────────────────────
-            Text(
-              'Match Options',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
+            DraftCard(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+            Text('MATCH OPTIONS', style: DraftText.eyebrow(c.mut)),
             const SizedBox(height: 8),
 
             SwitchListTile(
@@ -431,28 +443,35 @@ class _AddEditRuleScreenState extends ConsumerState<AddEditRuleScreen> {
                 });
               },
             ),
-
-            const Divider(height: 32),
-
-            SwitchListTile(
-              title: const Text('Enable Rule'),
-              subtitle: const Text('Rule will be active when enabled'),
-              value: _isEnabled,
-              onChanged: (value) {
-                setState(() {
-                  _isEnabled = value;
-                });
-              },
+                ],
+              ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 14),
 
-            ElevatedButton(
-              onPressed: _saveRule,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+            DraftCard(
+              padding: const EdgeInsets.fromLTRB(18, 6, 18, 6),
+              child: SwitchListTile(
+                title: const Text('Enable Rule'),
+                subtitle: const Text('Rule will be active when enabled'),
+                value: _isEnabled,
+                onChanged: (value) {
+                  setState(() {
+                    _isEnabled = value;
+                  });
+                },
               ),
-              child: Text(isEditing ? 'Update Rule' : 'Add Rule'),
+            ),
+
+            const SizedBox(height: 20),
+
+            SizedBox(
+              width: double.infinity,
+              child: DraftButton(
+                isEditing ? 'Update Rule' : 'Add Rule',
+                onPressed: _saveRule,
+                icon: Icons.check_rounded,
+              ),
             ),
           ],
         ),

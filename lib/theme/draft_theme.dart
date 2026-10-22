@@ -87,5 +87,42 @@ ThemeData buildDraftTheme({required bool dark}) {
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: c.bg,
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: c.out, width: 1.5),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: c.out, width: 1.5),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: c.pri, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: c.err, width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: c.err, width: 1.5),
+      ),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? c.onpri : c.s1),
+      trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? c.pri : c.s2),
+      trackOutlineColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? c.pri : c.out),
+    ),
+    dividerTheme: DividerThemeData(color: c.s2, thickness: 1),
+    listTileTheme: const ListTileThemeData(
+        contentPadding: EdgeInsets.symmetric(horizontal: 4)),
   );
 }
