@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../legacy/history.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/draft_theme.dart';
+import '../theme/draft_widgets.dart';
 import 'package:intl/intl.dart';
 import '../models/reply_log.dart';
 import '../providers/log_provider.dart';
@@ -96,6 +97,11 @@ class LogsScreen extends ConsumerWidget {
                     ref: ref),
               ],
             ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: DraftWarn(
+                'Check the actual conversation - a log entry is not proof of delivery.'),
           ),
           Expanded(
             child: logs.isEmpty
@@ -213,193 +219,147 @@ class _LogCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isGood = log.rating == 1;
     final isBad = log.rating == -1;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    final c = DraftColors.of(context);
+    final tt = Theme.of(context).textTheme;
+    final isWa = log.appName.toLowerCase().contains('whats');
+    final badgeColor =
+        isWa ? const Color(0xFF1D7A4D) : const Color(0xFFA8326A);
+    return DraftCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: badgeColor,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              isWa ? 'W' : 'I',
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  _getAppIcon(log.appName),
-                  size: 20,
-                  color: _getAppColor(log.appName),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  log.appName,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                ),
-                if (log.aiModel.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      log.aiModel,
-                      style: const TextStyle(fontSize: 10, color: Colors.blue),
-                    ),
-                  ),
-                ],
-                const Spacer(),
-                Text(
-                  DateFormat('MMM dd, HH:mm').format(log.dateTime),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.person, size: 16),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    log.sender,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(8),
-                border: const Border(
-                  left: BorderSide(color: Colors.blue, width: 4),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'THEY SAID:',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    log.originalMessage.isNotEmpty
-                        ? log.originalMessage
-                        : '(no incoming text captured)',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(8),
-                border: const Border(
-                  left: BorderSide(color: Colors.green, width: 4),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'SUBMITTED (DELIVERY UNCONFIRMED):',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    log.autoReplySent,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.w500,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-            if (log.trained && log.correctedReply.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green, width: 0.6),
-                ),
-                child: Row(
+                Row(
                   children: [
-                    const Icon(Icons.check_circle,
-                        size: 14, color: Colors.green),
-                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'Trained: "${log.correctedReply}"',
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurface),
+                        log.sender,
+                        style: tt.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: c.tx,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                    Text(
+                      DateFormat('MMM dd, HH:mm').format(log.dateTime),
+                      style: tt.bodySmall?.copyWith(color: c.mut),
                     ),
                   ],
                 ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                IconButton(
-                  icon: Icon(
-                    Icons.thumb_up,
-                    size: 20,
-                    color: isGood ? Colors.green : Colors.grey,
-                  ),
-                  tooltip: 'Good reply',
-                  onPressed: () => _rateGood(context, ref, log),
+                Text(log.appName,
+                    style: tt.bodySmall?.copyWith(color: c.mut)),
+                const SizedBox(height: 6),
+                Text(
+                  'In: ${log.originalMessage.isNotEmpty ? log.originalMessage : '(no incoming text captured)'}',
+                  style: tt.bodyMedium?.copyWith(color: c.tx),
                 ),
-                IconButton(
-                  icon: Icon(
-                    Icons.thumb_down,
-                    size: 20,
-                    color: isBad ? Colors.red : Colors.grey,
+                const SizedBox(height: 2),
+                Text(
+                  'Out: ${log.autoReplySent}',
+                  style: tt.bodyMedium?.copyWith(
+                    color: c.tx,
+                    fontWeight: FontWeight.w500,
                   ),
-                  tooltip: 'Bad reply',
-                  onPressed: () => _showFeedbackDialog(context, ref, log),
                 ),
-                const Spacer(),
-                TextButton.icon(
-                  icon: const Icon(Icons.school, size: 16),
-                  label: Text(
-                    log.trained ? 'Edit training' : 'Teach better reply',
-                    style: const TextStyle(fontSize: 12),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    _DraftStatusChip(
+                      label: 'Submitted',
+                      bg: c.tc,
+                      fg: c.otc,
+                    ),
+                    _DraftStatusChip(
+                      label:
+                          'Source: ${log.aiModel.isNotEmpty ? 'AI' : 'Rule'}',
+                      bg: Colors.transparent,
+                      fg: c.tx,
+                      outlined: true,
+                      outline: c.out,
+                    ),
+                    if (isGood)
+                      _DraftStatusChip(
+                          label: 'Good', bg: c.pc, fg: c.onpc),
+                    if (isBad)
+                      _DraftStatusChip(
+                          label: 'Bad', bg: c.errc, fg: c.oerr),
+                  ],
+                ),
+                if (log.trained && log.correctedReply.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: c.s1,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Trained: "${log.correctedReply}"',
+                      style: tt.bodySmall?.copyWith(color: c.tx),
+                    ),
                   ),
-                  onPressed: () => _showFeedbackDialog(context, ref, log),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _DraftIconAction(
+                      icon: Icons.thumb_up_outlined,
+                      activeIcon: Icons.thumb_up,
+                      active: isGood,
+                      activeColor: c.pri,
+                      color: c.mut,
+                      tooltip: 'Good reply',
+                      onPressed: () => _rateGood(context, ref, log),
+                    ),
+                    const SizedBox(width: 4),
+                    _DraftIconAction(
+                      icon: Icons.thumb_down_outlined,
+                      activeIcon: Icons.thumb_down,
+                      active: isBad,
+                      activeColor: c.err,
+                      color: c.mut,
+                      tooltip: 'Bad reply',
+                      onPressed: () => _showFeedbackDialog(context, ref, log),
+                    ),
+                    const Spacer(),
+                    DraftButton.secondary(
+                      log.trained ? 'Edit training' : 'Teach better',
+                      icon: Icons.school_outlined,
+                      onPressed: () => _showFeedbackDialog(context, ref, log),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -541,25 +501,72 @@ class _LogCard extends ConsumerWidget {
     );
   }
 
-  IconData _getAppIcon(String appName) {
-    switch (appName) {
-      case 'WhatsApp':
-        return Icons.chat;
-      case 'Instagram':
-        return Icons.camera_alt;
-      default:
-        return Icons.apps;
-    }
-  }
 
-  Color _getAppColor(String appName) {
-    switch (appName) {
-      case 'WhatsApp':
-        return Colors.green;
-      case 'Instagram':
-        return Colors.purple;
-      default:
-        return Colors.blue;
-    }
+}
+
+class _DraftStatusChip extends StatelessWidget {
+  final String label;
+  final Color bg;
+  final Color fg;
+  final bool outlined;
+  final Color? outline;
+
+  const _DraftStatusChip({
+    required this.label,
+    required this.bg,
+    required this.fg,
+    this.outlined = false,
+    this.outline,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: outlined ? Colors.transparent : bg,
+        borderRadius: BorderRadius.circular(999),
+        border: outlined ? Border.all(color: outline ?? bg, width: 1.5) : null,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: fg),
+      ),
+    );
+  }
+}
+
+class _DraftIconAction extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final bool active;
+  final Color activeColor;
+  final Color color;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  const _DraftIconAction({
+    required this.icon,
+    required this.activeIcon,
+    required this.active,
+    required this.activeColor,
+    required this.color,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(
+        active ? activeIcon : icon,
+        size: 20,
+        color: active ? activeColor : color,
+      ),
+      tooltip: tooltip,
+      onPressed: onPressed,
+    );
   }
 }
