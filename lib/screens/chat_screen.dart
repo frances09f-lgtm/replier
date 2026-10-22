@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/draft_theme.dart';
+import '../theme/draft_widgets.dart';
 import '../models/chat_message.dart';
 import '../providers/chat_provider.dart';
 
@@ -60,30 +61,55 @@ class ChatScreen extends ConsumerWidget {
                   ),
                 );
               }),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(14, 8, 14, 0),
+                child: DraftWarn(
+                    'Test mode: nothing is sent. Try the AI and train preferred replies.'),
+              ),
               Expanded(
                 child: messages.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
+                    ? Builder(builder: (context) {
+                        final c = DraftColors.of(context);
+                        return ListView(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 12),
                           children: [
-                            Icon(Icons.chat_bubble_outline,
-                                size: 64, color: colorScheme.outlineVariant),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Start a conversation',
-                              style: TextStyle(
-                                  fontSize: 18,
-                                  color: colorScheme.onSurfaceVariant),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                constraints: BoxConstraints(
+                                  maxWidth:
+                                      MediaQuery.of(context).size.width * 0.85,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: c.s1,
+                                  borderRadius: const BorderRadius.only(
+                                    topLeft: Radius.circular(22),
+                                    topRight: Radius.circular(22),
+                                    bottomRight: Radius.circular(22),
+                                    bottomLeft: Radius.circular(6),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Hi! Type a sample incoming message and I will answer like Replier would.',
+                                  style: DraftText.body(15, c.tx),
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Ask me anything!',
-                              style: TextStyle(
-                                  fontSize: 14, color: colorScheme.outline),
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: DraftButton.secondary(
+                                'Train this reply',
+                                icon: Icons.thumb_up_outlined,
+                                onPressed: null,
+                              ),
                             ),
                           ],
-                        ),
-                      )
+                        );
+                      })
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 8),
@@ -165,19 +191,10 @@ class _ChatBubble extends ConsumerWidget {
             isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!isUser) ...[
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: colorScheme.secondaryContainer,
-              child: Icon(Icons.smart_toy,
-                  size: 16, color: colorScheme.onSecondaryContainer),
-            ),
-            const SizedBox(width: 8),
-          ],
           Flexible(
             child: Container(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.78,
+                maxWidth: MediaQuery.of(context).size.width * 0.85,
               ),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
@@ -408,15 +425,11 @@ class _ChatInputBarState extends State<_ChatInputBar> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    final c = DraftColors.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        border: Border(
-          top: BorderSide(color: colorScheme.outlineVariant, width: 0.5),
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
       child: SafeArea(
+        top: false,
         child: Row(
           children: [
             if (widget.isLoading)
@@ -427,7 +440,7 @@ class _ChatInputBarState extends State<_ChatInputBar> {
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: colorScheme.primary,
+                    color: c.pri,
                   ),
                 ),
               ),
@@ -439,28 +452,46 @@ class _ChatInputBarState extends State<_ChatInputBar> {
                 maxLines: 4,
                 enabled: !widget.isLoading,
                 onSubmitted: (_) => _send(),
+                style: DraftText.body(15, c.tx),
                 decoration: InputDecoration(
                   hintText:
-                      widget.isLoading ? 'Thinking...' : 'Type a message...',
+                      widget.isLoading ? 'Thinking...' : 'Type a test message',
+                  hintStyle: DraftText.body(15, c.mut),
                   filled: true,
-                  fillColor: colorScheme.surfaceContainerHighest,
+                  fillColor: c.bg,
                   contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(999),
+                    borderSide: BorderSide(color: c.out, width: 1.5),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(999),
+                    borderSide: BorderSide(color: c.pri, width: 1.5),
+                  ),
+                  disabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(999),
+                    borderSide: BorderSide(color: c.out, width: 1.5),
                   ),
                 ),
               ),
             ),
             const SizedBox(width: 8),
-            IconButton(
-              onPressed: widget.isLoading ? null : _send,
-              icon: Icon(
-                Icons.send_rounded,
-                color: widget.isLoading
-                    ? colorScheme.outline
-                    : colorScheme.primary,
+            Material(
+              color: c.pri,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: widget.isLoading ? null : _send,
+                child: SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: Icon(
+                    Icons.send_rounded,
+                    size: 22,
+                    color: widget.isLoading ? c.onpri.withValues(alpha: .5) : c.onpri,
+                  ),
+                ),
               ),
             ),
           ],

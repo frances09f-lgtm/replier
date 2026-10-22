@@ -184,29 +184,10 @@ class LogsScreen extends ConsumerWidget {
 class _EmptyLogsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.history,
-            size: 80,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No logs yet',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Auto-reply history will appear here',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
-                ),
-          ),
-        ],
-      ),
+    return const DraftEmptyState(
+      icon: Icons.history_rounded,
+      title: 'No logs yet',
+      subtitle: 'Auto-reply history will appear here',
     );
   }
 }
@@ -226,11 +207,10 @@ class _FeedbackChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected = current == value;
-    return FilterChip(
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      selected: selected,
-      onSelected: (_) =>
+    return DraftFilterChip(
+      label: label,
+      selected: current == value,
+      onTap: () =>
           ref.read(logFeedbackFilterProvider.notifier).state = value,
     );
   }
@@ -251,11 +231,10 @@ class _SourceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected = current == value;
-    return FilterChip(
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      selected: selected,
-      onSelected: (_) =>
+    return DraftFilterChip(
+      label: label,
+      selected: current == value,
+      onTap: () =>
           ref.read(logSourceFilterProvider.notifier).state = value,
     );
   }
@@ -341,25 +320,11 @@ class _LogCard extends ConsumerWidget {
                   spacing: 8,
                   runSpacing: 6,
                   children: [
-                    _DraftStatusChip(
-                      label: 'Submitted',
-                      bg: c.tc,
-                      fg: c.otc,
-                    ),
-                    _DraftStatusChip(
-                      label:
-                          'Source: ${log.aiModel.isNotEmpty ? 'AI' : 'Rule'}',
-                      bg: Colors.transparent,
-                      fg: c.tx,
-                      outlined: true,
-                      outline: c.out,
-                    ),
-                    if (isGood)
-                      _DraftStatusChip(
-                          label: 'Good', bg: c.pc, fg: c.onpc),
-                    if (isBad)
-                      _DraftStatusChip(
-                          label: 'Bad', bg: c.errc, fg: c.oerr),
+                    const DraftChip.wait('Submitted'),
+                    DraftChip(
+                        'Source: ${log.aiModel.isNotEmpty ? 'AI' : 'Rule'}'),
+                    if (isGood) const DraftChip.ok('Good'),
+                    if (isBad) const DraftChip.bad('Bad'),
                   ],
                 ),
                 if (log.trained && log.correctedReply.isNotEmpty) ...[
@@ -553,40 +518,6 @@ class _LogCard extends ConsumerWidget {
   }
 
 
-}
-
-class _DraftStatusChip extends StatelessWidget {
-  final String label;
-  final Color bg;
-  final Color fg;
-  final bool outlined;
-  final Color? outline;
-
-  const _DraftStatusChip({
-    required this.label,
-    required this.bg,
-    required this.fg,
-    this.outlined = false,
-    this.outline,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: outlined ? Colors.transparent : bg,
-        borderRadius: BorderRadius.circular(999),
-        border: outlined ? Border.all(color: outline ?? bg, width: 1.5) : null,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: fg),
-      ),
-    );
-  }
 }
 
 class _DraftIconAction extends StatelessWidget {

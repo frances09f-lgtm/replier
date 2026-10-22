@@ -504,3 +504,190 @@ class DraftNav extends StatelessWidget {
     );
   }
 }
+
+/// Static chip (draft .chip.static): ok = mint fill, wait = blue-grey fill,
+/// bad = red fill, default = outlined.
+class DraftChip extends StatelessWidget {
+  final String label;
+  final _ChipTone _tone;
+
+  const DraftChip(this.label, {super.key}) : _tone = _ChipTone.outline;
+  const DraftChip.ok(this.label, {super.key}) : _tone = _ChipTone.ok;
+  const DraftChip.wait(this.label, {super.key}) : _tone = _ChipTone.wait;
+  const DraftChip.bad(this.label, {super.key}) : _tone = _ChipTone.bad;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = DraftColors.of(context);
+    late final Color bg, fg;
+    var outlined = false;
+    switch (_tone) {
+      case _ChipTone.outline:
+        bg = Colors.transparent; fg = c.tx; outlined = true;
+      case _ChipTone.ok:
+        bg = c.pc; fg = c.onpc;
+      case _ChipTone.wait:
+        bg = c.tc; fg = c.otc;
+      case _ChipTone.bad:
+        bg = c.errc; fg = c.oerr;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: outlined ? Border.all(color: c.out, width: 1.5) : null,
+      ),
+      child: Text(label,
+          style: DraftText.body(13, fg, weight: FontWeight.w500)),
+    );
+  }
+}
+
+enum _ChipTone { outline, ok, wait, bad }
+
+/// Tappable filter chip row item (draft .chip / .chip.sel) - outline pill,
+/// mint fill when selected, no checkmark.
+class DraftFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const DraftFilterChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = DraftColors.of(context);
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: selected ? c.pc : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+          border: selected ? null : Border.all(color: c.out, width: 1.5),
+        ),
+        alignment: Alignment.center,
+        child: Text(label,
+            style: DraftText.body(14.5, selected ? c.onpc : c.tx,
+                weight: FontWeight.w500)),
+      ),
+    );
+  }
+}
+
+/// Draft-style empty state: muted icon, display title, muted subtitle,
+/// optional secondary pill action.
+class DraftEmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const DraftEmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = DraftColors.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 72, color: c.mut.withValues(alpha: .45)),
+            const SizedBox(height: 18),
+            Text(title, style: DraftText.display(22, c.tx)),
+            const SizedBox(height: 6),
+            Text(subtitle,
+                textAlign: TextAlign.center,
+                style: DraftText.body(14.5, c.mut)),
+            if (actionLabel != null) ...[
+              const SizedBox(height: 20),
+              DraftButton.secondary(actionLabel!,
+                  icon: Icons.add, onPressed: onAction),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Draft "Analysis" card: h3 title, countdown ring, status text.
+/// Resting state shows a muted empty ring and honest idle copy.
+class DraftAnalysisCard extends StatelessWidget {
+  final double progress; // 0..1
+  final String ringLabel; // e.g. remaining seconds, '--' when idle
+  final String text;
+  final bool idle;
+
+  const DraftAnalysisCard({
+    super.key,
+    required this.progress,
+    required this.ringLabel,
+    required this.text,
+    this.idle = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = DraftColors.of(context);
+    return DraftCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Analysis',
+              style: DraftText.display(19, c.tx)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              SizedBox(
+                width: 88,
+                height: 88,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CircularProgressIndicator(
+                      value: idle ? 0 : progress.clamp(0.0, 1.0),
+                      strokeWidth: 9,
+                      strokeCap: StrokeCap.round,
+                      backgroundColor: c.bg,
+                      valueColor: AlwaysStoppedAnimation(
+                          idle ? c.mut.withValues(alpha: .4) : c.pri),
+                    ),
+                    Center(
+                      child: Text(ringLabel,
+                          style: DraftText.display(
+                              22, idle ? c.mut : c.tx)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(text,
+                    style: DraftText.body(13.5, idle ? c.mut : c.tx)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

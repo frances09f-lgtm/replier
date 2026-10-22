@@ -21,24 +21,39 @@ class RulesScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 6, 6, 0),
-            child: Row(
-              children: [
-                Expanded(
-                    child: Text('Manage rules',
-                        style: DraftText.display(30, c.tx))),
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () {
-                    showSearch(
-                      context: context,
-                      delegate: RuleSearchDelegate(ref),
-                    );
-                  },
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+            child: Text('Manage rules', style: DraftText.display(30, c.tx)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+            child: TextField(
+              onChanged: (v) =>
+                  ref.read(searchQueryProvider.notifier).state = v,
+              decoration: InputDecoration(
+                hintText: 'Search trigger, reply, or contact',
+                prefixIcon: const Icon(Icons.search_rounded),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(999)),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: c.out, width: 1.5),
                 ),
-              ],
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(999),
+                  borderSide: BorderSide(color: c.pri, width: 1.5),
+                ),
+              ),
             ),
           ),
+          Builder(builder: (context) {
+            final all = ref.watch(rulesProvider);
+            final enabled = all.where((r) => r.isEnabled).length;
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 14, 2),
+              child: Text('${all.length} rules, $enabled enabled',
+                  style: DraftText.body(12.5, c.mut)),
+            );
+          }),
           Expanded(
             child: rules.isEmpty
                 ? _EmptyRulesView(onAddRule: () => _navigateToAddRule(context))
@@ -60,9 +75,15 @@ class RulesScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToAddRule(context),
-        child: const Icon(Icons.add),
+        backgroundColor: c.pc,
+        foregroundColor: c.onpc,
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        icon: const Icon(Icons.add),
+        label: Text('Add Rule',
+            style: DraftText.display(16, c.onpc)),
       ),
     );
   }
@@ -114,35 +135,12 @@ class _EmptyRulesView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.rule,
-            size: 80,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No rules yet',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Create your first auto-reply rule',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
-                ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: onAddRule,
-            icon: const Icon(Icons.add),
-            label: const Text('Add Rule'),
-          ),
-        ],
-      ),
+    return DraftEmptyState(
+      icon: Icons.playlist_add_check_rounded,
+      title: 'No rules yet',
+      subtitle: 'Create your first auto-reply rule',
+      actionLabel: 'Add Rule',
+      onAction: onAddRule,
     );
   }
 }
@@ -210,18 +208,16 @@ class _RuleCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _chip(c, 'Contains Match', ok: true),
+              const DraftChip.ok('Contains Match'),
               if (senders.isEmpty)
-                _chip(c, 'Anyone')
+                const DraftChip('Anyone')
               else
-                _chip(
-                    c,
-                    senderLabel +
-                        (senders.length > 1 ? ' (${senders.length})' : '')),
+                DraftChip(senderLabel +
+                    (senders.length > 1 ? ' (${senders.length})' : '')),
               if (triggers.length > 1)
-                _chip(c, '${triggers.length} triggers'),
+                DraftChip('${triggers.length} triggers'),
               if (replies.length > 1)
-                _chip(c, '${replies.length} replies (random)'),
+                DraftChip('${replies.length} replies (random)'),
             ],
           ),
           const SizedBox(height: 12),
@@ -237,18 +233,6 @@ class _RuleCard extends StatelessWidget {
     );
   }
 
-  Widget _chip(DraftColors c, String label, {bool ok = false}) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: ok ? c.pc : Colors.transparent,
-          border:
-              Border.all(color: ok ? Colors.transparent : c.out, width: 1.5),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(label,
-            style:
-                DraftText.body(13, ok ? c.onpc : c.tx, weight: FontWeight.w500)),
-      );
 }
 
 class RuleSearchDelegate extends SearchDelegate<String> {

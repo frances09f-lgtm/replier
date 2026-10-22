@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/app_settings.dart';
 import '../providers/settings_provider.dart';
 import '../providers/statistics_provider.dart';
 import '../providers/log_provider.dart';
@@ -9,7 +8,9 @@ import '../providers/rule_provider.dart';
 import '../providers/reply_countdown_provider.dart';
 import '../providers/ai_usage_provider.dart';
 import '../utils/ai_engine_display.dart';
-import '../widgets/pipeline_status_card.dart';
+import '../widgets/analysis_countdown_card.dart';
+import '../providers/analysis_status_provider.dart';
+import '../providers/pipeline_status_provider.dart';
 import '../theme/draft_theme.dart';
 import '../theme/draft_widgets.dart';
 import 'notes_screen.dart';
@@ -71,29 +72,9 @@ class DashboardScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
 
-            // Live pipeline processing status
-            const PipelineStatusCard(),
-
-            // Reply delay badge
-            if (settings.masterEnabled) ...[
-              const SizedBox(height: 12),
-              _buildReplyDelayBadge(context, settings, replyCountdown),
-            ],
-
-            // Schedule status badge
-            if (settings.scheduleEnabled) ...[
-              const SizedBox(height: 12),
-              _buildScheduleBadge(context, settings),
-            ],
-
-            // Confirm-before-reply safety note
-            if (settings.confirmBeforeReply) ...[
-              const SizedBox(height: 12),
-              const DraftWarn(
-                  'Safety mode: you will be asked to approve each reply before it is sent.'),
-            ],
-
-            const SizedBox(height: 12),
+            // Analysis card (draft): resting ring, live countdown when a
+            // reply is scheduled, pipeline stage while processing.
+            _buildAnalysisCard(context, ref, replyCountdown),
 
             // Today statistics
             _buildStatsGrid(context, ref, stats),
@@ -144,21 +125,14 @@ class DashboardScreen extends ConsumerWidget {
       return _freeTierLimits[engineId] ?? 0;
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'AI Usage Today',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
+    final cAi = DraftColors.of(context);
+    return DraftCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('AI usage', style: DraftText.display(19, cAi.tx)),
+          const SizedBox(height: 6),
+          Column(
               children: [
                 for (var i = 0; i < engineIds.length; i++) ...[
                   if (i > 0) const Divider(height: 1, indent: 56),
@@ -180,9 +154,8 @@ class DashboardScreen extends ConsumerWidget {
                 ],
               ],
             ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -364,6 +337,52 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildAnalysisCard(BuildContext context, WidgetRef ref,
+      ReplyCountdownData countdown) {
+    final analyses = ref.watch(analysisStatusProvider);
+    final pipeline = ref.watch(pipelineStatusProvider);
+    if (analyses.isNotEmpty) {
+      return Column(
+          children: analyses
+              .map((a) => AnalysisCountdownCard(key: ValueKey(a.id), status: a))
+              .toList());
+    }
+    if (pipeline.stage != null) {
+      const labels = {
+        PipelineStage.gotMessage: 'Got a new message.',
+        PipelineStage.analysing: 'Analyzing the message.',
+        PipelineStage.replyReady: 'Reply ready.',
+        PipelineStage.sending: 'Sending the reply.',
+      };
+      const progress = {
+        PipelineStage.gotMessage: 0.25,
+        PipelineStage.analysing: 0.5,
+        PipelineStage.replyReady: 0.75,
+        PipelineStage.sending: 0.9,
+      };
+      return DraftAnalysisCard(
+        progress: progress[pipeline.stage] ?? 0.5,
+        ringLabel: '',
+        text: labels[pipeline.stage] ?? 'Processing.',
+      );
+    }
+    if (countdown.isActive) {
+      final secs = countdown.remainingMs ~/ 1000;
+      return DraftAnalysisCard(
+        progress: countdown.progress,
+        ringLabel: '$secs',
+        text:
+            'Reply to ${countdown.sender} is scheduled. Sending in ${countdown.remainingFormatted}.',
+      );
+    }
+    return const DraftAnalysisCard(
+      progress: 0,
+      ringLabel: '--',
+      text: 'Idle. Analysis starts when a new message arrives.',
+      idle: true,
+    );
+  }
+
   Widget _buildStatsGrid(
       BuildContext context, WidgetRef ref, Map<String, dynamic> stats) {
     final dailyReplies = stats['dailyRepliesSent'] as int? ?? 0;
@@ -378,77 +397,8 @@ class DashboardScreen extends ConsumerWidget {
         .toList();
     final ruleReplies = todayLogs.where((l) => l.ruleId.isNotEmpty).length;
     final aiReplies = todayLogs.where((l) => l.ruleId.isEmpty).length;
+    final c = DraftColors.of(context);
 
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _StatCard(
-                icon: Icons.reply,
-                label: 'Replies sent',
-                value: dailyReplies.toString(),
-                color: Colors.green,
-                onTap: () => _showAiReplyBreakdown(context, ref),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _StatCard(
-                icon: Icons.rule_rounded,
-                label: 'Rules matched',
-                value: ruleReplies.toString(),
-                color: const Color(0xFF006B5E),
-                onTap: () {
-                  if (onGoToTab != null) onGoToTab!(1);
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _StatCard(
-                icon: Icons.auto_awesome,
-                label: 'AI replies',
-                value: aiReplies.toString(),
-                color: const Color(0xFF5B54D6),
-                onTap: () {
-                  if (onGoToTab != null) onGoToTab!(3);
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _StatCard(
-                icon: Icons.event_note_rounded,
-                label: 'Notes',
-                value: activeNotesCount.toString(),
-                color: const Color(0xFF9333EA),
-                onTap: () {
-                  if (onGoToTab != null) {
-                    onGoToTab!(4);
-                  } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const NotesScreen()),
-                    );
-                  }
-                },
-              ),
-            ),
-          ],
-        ),
-        _buildDailyLimitBar(context, ref, dailyReplies),
-      ],
-    );
-  }
-
-  Widget _buildDailyLimitBar(
-      BuildContext context, WidgetRef ref, int dailyReplies) {
     final settings = ref.watch(appSettingsProvider);
     final int limit;
     switch (settings.aiModelType) {
@@ -461,41 +411,63 @@ class DashboardScreen extends ConsumerWidget {
       default:
         limit = settings.localReplyLimit;
     }
-    if (limit <= 0) return const SizedBox.shrink();
-    final c = DraftColors.of(context);
-    final fraction = (dailyReplies / limit).clamp(0.0, 1.0);
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+
+    Widget stat(String value, String label, VoidCallback onTap) =>
+        GestureDetector(
+          onTap: onTap,
+          child: DraftStat(value: value, label: label),
+        );
+
+    return DraftCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Today', style: DraftText.display(19, c.tx)),
+          const SizedBox(height: 12),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 2.1,
             children: [
-              Text('Daily limit',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: c.mut)),
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: fraction,
-                  minHeight: 8,
-                  backgroundColor: c.s2,
-                  valueColor: AlwaysStoppedAnimation<Color>(c.pri),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text('$dailyReplies of $limit',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: c.mut)),
+              stat(dailyReplies.toString(), 'Replies sent',
+                  () => _showAiReplyBreakdown(context, ref)),
+              stat(ruleReplies.toString(), 'Rules matched', () {
+                if (onGoToTab != null) onGoToTab!(1);
+              }),
+              stat(aiReplies.toString(), 'AI replies', () {
+                if (onGoToTab != null) onGoToTab!(3);
+              }),
+              stat(activeNotesCount.toString(), 'Notes', () {
+                if (onGoToTab != null) {
+                  onGoToTab!(4);
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const NotesScreen()),
+                  );
+                }
+              }),
             ],
           ),
-        ),
+          if (limit > 0) ...[
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Daily limit', style: DraftText.body(13.5, c.mut)),
+                Text('$dailyReplies of $limit',
+                    style: DraftText.body(13.5, c.tx,
+                        weight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            DraftProg(progress: (dailyReplies / limit).clamp(0.0, 1.0)),
+          ],
+        ],
       ),
     );
   }
@@ -506,25 +478,17 @@ class DashboardScreen extends ConsumerWidget {
     final sorted = [...logs]..sort((a, b) => b.dateTime.compareTo(a.dateTime));
     final recent = sorted.take(3).toList();
     if (recent.isEmpty) return const SizedBox.shrink();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
+    return DraftCard(
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Recent activity',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(color: c.tx)),
+                Text('Recent activity', style: DraftText.display(19, c.tx)),
                 if (onGoToTab != null)
-                  TextButton(
-                    onPressed: () => onGoToTab!(3),
-                    child: const Text('All logs'),
-                  ),
+                  DraftButton.tertiary('All logs',
+                      onPressed: () => onGoToTab!(3)),
               ],
             ),
             const SizedBox(height: 6),
@@ -538,30 +502,41 @@ class DashboardScreen extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 14,
-                      backgroundColor: badgeColor,
-                      child: Text(isWa ? 'W' : 'I',
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 12)),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: badgeColor,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      alignment: Alignment.center,
                       child: Text(
-                        log.sender,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyMedium
-                            ?.copyWith(color: c.tx),
-                        overflow: TextOverflow.ellipsis,
+                        isWa ? 'W' : 'I',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
-                    Text(
-                      '$source reply, $time',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: c.mut),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            log.sender,
+                            style: DraftText.body(15, c.tx,
+                                weight: FontWeight.w700),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '$source reply sent, $time',
+                            style: DraftText.body(12.5, c.mut),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -569,7 +544,6 @@ class DashboardScreen extends ConsumerWidget {
             }),
           ],
         ),
-      ),
     );
   }
 
@@ -588,208 +562,55 @@ class DashboardScreen extends ConsumerWidget {
     ];
     final done = steps.where((s) => s).length;
     if (done == steps.length) return const SizedBox.shrink();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Setup checklist',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(color: c.tx)),
-                  const SizedBox(height: 4),
-                  Text('$done of ${steps.length} steps done',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: c.mut)),
-                ],
-              ),
+    return DraftCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Setup checklist', style: DraftText.display(19, c.tx)),
+          const SizedBox(height: 4),
+          Text('$done of ${steps.length} steps done',
+              style: DraftText.body(13.5, c.mut)),
+          const SizedBox(height: 10),
+          DraftProg(progress: done / steps.length),
+          const SizedBox(height: 12),
+          DraftButton.secondary(
+            'Open setup checklist',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
             ),
-            TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              ),
-              child: const Text('Open'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReplyDelayBadge(BuildContext context, AppSettings settings,
-      ReplyCountdownData countdown) {
-    final min = settings.minReplyDelaySeconds;
-    final max = settings.maxReplyDelaySeconds;
-
-    if (countdown.isActive) {
-      return Card(
-        color: Colors.teal.shade50,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 3,
-                  value: countdown.progress,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.teal),
-                  backgroundColor: Colors.teal.shade100,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Replying to ${countdown.sender}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.teal.shade800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    if (countdown.replyText.isNotEmpty)
-                      Text(
-                        '"${countdown.replyText}"',
-                        style: TextStyle(
-                          color: Colors.teal.shade600,
-                          fontSize: 12,
-                          fontStyle: FontStyle.italic,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      )
-                    else
-                      Text(
-                        countdown.remainingFormatted,
-                        style: TextStyle(
-                          color: Colors.teal.shade600,
-                          fontSize: 12,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              Text(
-                countdown.remainingFormatted,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.teal.shade700,
-                ),
-              ),
-            ],
           ),
-        ),
-      );
-    }
-
-    return Card(
-      color: Colors.blue.shade50,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Icon(Icons.timer, color: Colors.blue.shade700, size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Reply Delay',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade800,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    min == max
-                        ? 'Fixed ${min}s delay before reply'
-                        : 'Random delay ${min}s – ${max}s before reply',
-                    style: TextStyle(
-                      color: Colors.blue.shade600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildScheduleBadge(BuildContext context, AppSettings settings) {
-    final isWithin = settings.isWithinSchedule();
-    final startHour = settings.scheduleStartHour;
-    final startMin = settings.scheduleStartMinute;
-    final endHour = settings.scheduleEndHour;
-    final endMin = settings.scheduleEndMinute;
-
-    final startStr = _formatTime(startHour, startMin);
-    final endStr = _formatTime(endHour, endMin);
-
-    final color = isWithin ? Colors.green : Colors.orange;
-    final bgColor = isWithin ? Colors.green.shade50 : Colors.orange.shade50;
-    final icon = isWithin ? Icons.check_circle : Icons.pause_circle;
-    final statusText = isWithin ? 'Active' : 'Paused';
-    final detailText = isWithin
-        ? 'Auto-reply is active ($startStr - $endStr)'
-        : 'Auto-reply paused (outside $startStr - $endStr)';
-
-    return Card(
-      color: bgColor,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Schedule: $statusText',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: color.shade800,
-                    ),
+  Widget _buildAiModelRow(BuildContext context, String modelKey, int count) {
+    final display = AiEngineDisplay.forEngine(modelKey);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(display.icon, color: display.color, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              display.label,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    detailText,
-                    style: TextStyle(
-                      color: color.shade600,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ],
-        ),
+          ),
+          Text(
+            count.toString(),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: display.color,
+                ),
+          ),
+        ],
       ),
     );
-  }
-
-  String _formatTime(int hour, int minute) {
-    final period = hour >= 12 ? 'PM' : 'AM';
-    final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$displayHour:${minute.toString().padLeft(2, '0')} $period';
   }
 
   void _showAiReplyBreakdown(BuildContext context, WidgetRef ref) {
@@ -855,99 +676,5 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildAiModelRow(BuildContext context, String modelKey, int count) {
-    final display = AiEngineDisplay.forEngine(modelKey);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(display.icon, color: display.color, size: 24),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              display.label,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-            ),
-          ),
-          Text(
-            count.toString(),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: display.color,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
 
 }
-
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-  final VoidCallback? onTap;
-
-  const _StatCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(icon, color: color, size: 22),
-                  ),
-                  if (onTap != null)
-                    Icon(Icons.info_outline,
-                        size: 16, color: color.withValues(alpha: 0.5)),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
