@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/draft_theme.dart';
 import '../providers/analysis_status_provider.dart';
 
 /// A deadline visualization, not an estimate of model completion/progress.
@@ -14,7 +15,8 @@ class AnalysisCountdownCard extends StatelessWidget {
     final unknown = status.phase == 'unknown';
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
     final duration = Duration(milliseconds: reducedMotion ? 0 : 180);
-    const accent = Color(0xFFAE4C18);
+    final c = DraftColors.of(context);
+    final accent = c.pri;
     final title = active
         ? (waiting ? 'Checking status…' : 'Analysing')
         : expired
@@ -37,9 +39,9 @@ class AnalysisCountdownCard extends StatelessWidget {
         margin: const EdgeInsets.only(top: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-            color: const Color(0xFFFFF5E8),
+            color: c.s1,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFF1DBBF))),
+            border: Border.all(color: c.out.withValues(alpha: 0.5))),
         child: Row(children: [
           SizedBox(
               width: 58,
@@ -56,8 +58,8 @@ class AnalysisCountdownCard extends StatelessWidget {
                             value: remaining,
                             strokeWidth: 4,
                             strokeCap: StrokeCap.round,
-                            backgroundColor: const Color(0xFFF0DDC5),
-                            valueColor: const AlwaysStoppedAnimation(accent))),
+                            backgroundColor: c.s2,
+                            valueColor: AlwaysStoppedAnimation(accent))),
                   ),
                 if (active)
                   AnimatedSwitcher(
@@ -72,7 +74,7 @@ class AnalysisCountdownCard extends StatelessWidget {
                               child: child)),
                       child: Text('${status.seconds}s',
                           key: ValueKey(status.seconds),
-                          style: const TextStyle(
+                          style: TextStyle(
                               color: accent,
                               fontWeight: FontWeight.w800,
                               fontSize: 16)))
@@ -91,7 +93,7 @@ class AnalysisCountdownCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         color: accent,
                         fontWeight: FontWeight.w800,
                         fontSize: 15)),
@@ -101,13 +103,13 @@ class AnalysisCountdownCard extends StatelessWidget {
                       child: Text(status.sender,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Color(0xFF79533F),
+                          style: TextStyle(
+                              color: c.tx,
                               fontWeight: FontWeight.w600))),
                 const SizedBox(height: 5),
                 Text(subtitle,
-                    style: const TextStyle(
-                        color: Color(0xFF886F5C), fontSize: 12)),
+                    style: TextStyle(
+                        color: c.mut, fontSize: 12)),
               ])),
         ]),
       ),
