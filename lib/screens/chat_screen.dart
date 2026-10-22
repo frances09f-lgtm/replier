@@ -423,8 +423,6 @@ class _ChatInputBarState extends State<_ChatInputBar> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     final c = DraftColors.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
