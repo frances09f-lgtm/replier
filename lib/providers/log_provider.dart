@@ -80,11 +80,17 @@ final appFilterProvider = StateProvider<String?>((ref) => null);
 /// Feedback filter: 'all', 'bad', 'unrated', 'good'
 final logFeedbackFilterProvider = StateProvider<String>((ref) => 'all');
 
+/// Source filter: 'all', 'rule', 'ai' (reply source; delivery status is not
+/// tracked by the log model, so the draft's Sent/Attempted/Failed chips map
+/// to this instead)
+final logSourceFilterProvider = StateProvider<String>((ref) => 'all');
+
 /// Provider for filtered logs
 final filteredLogsProvider = Provider<List<ReplyLog>>((ref) {
   final logs = ref.watch(logsProvider);
   final appFilter = ref.watch(appFilterProvider);
   final feedbackFilter = ref.watch(logFeedbackFilterProvider);
+  final sourceFilter = ref.watch(logSourceFilterProvider);
 
   var result = logs;
   if (appFilter != null && appFilter.isNotEmpty) {
@@ -101,6 +107,16 @@ final filteredLogsProvider = Provider<List<ReplyLog>>((ref) {
       result = result.where((l) => l.rating == 0).toList();
       break;
     case 'all':
+    default:
+      break;
+  }
+  switch (sourceFilter) {
+    case 'rule':
+      result = result.where((l) => l.ruleId.isNotEmpty).toList();
+      break;
+    case 'ai':
+      result = result.where((l) => l.ruleId.isEmpty).toList();
+      break;
     default:
       break;
   }

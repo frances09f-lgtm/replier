@@ -17,6 +17,7 @@ class LogsScreen extends ConsumerWidget {
     final logs = ref.watch(filteredLogsProvider);
     final appFilter = ref.watch(appFilterProvider);
     final feedbackFilter = ref.watch(logFeedbackFilterProvider);
+    final sourceFilter = ref.watch(logSourceFilterProvider);
 
     return Scaffold(
       appBar: null,
@@ -94,6 +95,31 @@ class LogsScreen extends ConsumerWidget {
                     label: 'Good 👍',
                     value: 'good',
                     current: feedbackFilter,
+                    ref: ref),
+              ],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Row(
+              children: [
+                _SourceChip(
+                    label: 'All sources',
+                    value: 'all',
+                    current: sourceFilter,
+                    ref: ref),
+                const SizedBox(width: 8),
+                _SourceChip(
+                    label: 'Rule',
+                    value: 'rule',
+                    current: sourceFilter,
+                    ref: ref),
+                const SizedBox(width: 8),
+                _SourceChip(
+                    label: 'AI',
+                    value: 'ai',
+                    current: sourceFilter,
                     ref: ref),
               ],
             ),
@@ -206,6 +232,31 @@ class _FeedbackChip extends StatelessWidget {
       selected: selected,
       onSelected: (_) =>
           ref.read(logFeedbackFilterProvider.notifier).state = value,
+    );
+  }
+}
+
+class _SourceChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final String current;
+  final WidgetRef ref;
+
+  const _SourceChip({
+    required this.label,
+    required this.value,
+    required this.current,
+    required this.ref,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = current == value;
+    return FilterChip(
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      selected: selected,
+      onSelected: (_) =>
+          ref.read(logSourceFilterProvider.notifier).state = value,
     );
   }
 }

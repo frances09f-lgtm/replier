@@ -13,6 +13,8 @@ import '../widgets/pipeline_status_card.dart';
 import '../theme/draft_theme.dart';
 import '../theme/draft_widgets.dart';
 import 'notes_screen.dart';
+import 'settings_screen.dart';
+import 'package:intl/intl.dart';
 import '../providers/note_provider.dart';
 
 /// Dashboard screen with master switch and quick-action navigation
@@ -97,6 +99,10 @@ class DashboardScreen extends ConsumerWidget {
             _buildStatsGrid(context, ref, stats),
             const SizedBox(height: 16),
             _buildAiUsageSection(context, ref),
+            const SizedBox(height: 16),
+            _buildRecentActivity(context, ref),
+            const SizedBox(height: 16),
+            _buildSetupChecklist(context, ref),
           ],
         ),
       ),
@@ -362,38 +368,259 @@ class DashboardScreen extends ConsumerWidget {
       BuildContext context, WidgetRef ref, Map<String, dynamic> stats) {
     final dailyReplies = stats['dailyRepliesSent'] as int? ?? 0;
     final activeNotesCount = ref.watch(activeNotesCountProvider);
+    final logs = ref.watch(logsProvider);
+    final now = DateTime.now();
+    final todayLogs = logs
+        .where((l) =>
+            l.dateTime.year == now.year &&
+            l.dateTime.month == now.month &&
+            l.dateTime.day == now.day)
+        .toList();
+    final ruleReplies = todayLogs.where((l) => l.ruleId.isNotEmpty).length;
+    final aiReplies = todayLogs.where((l) => l.ruleId.isEmpty).length;
 
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _StatCard(
-            icon: Icons.reply,
-            label: 'Today\'s Replies',
-            value: dailyReplies.toString(),
-            color: Colors.green,
-            onTap: () => _showAiReplyBreakdown(context, ref),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                icon: Icons.reply,
+                label: 'Replies sent',
+                value: dailyReplies.toString(),
+                color: Colors.green,
+                onTap: () => _showAiReplyBreakdown(context, ref),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                icon: Icons.rule_rounded,
+                label: 'Rules matched',
+                value: ruleReplies.toString(),
+                color: const Color(0xFF006B5E),
+                onTap: () {
+                  if (onGoToTab != null) onGoToTab!(1);
+                },
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            icon: Icons.event_note_rounded,
-            label: 'Notes',
-            value: activeNotesCount.toString(),
-            color: const Color(0xFF9333EA),
-            onTap: () {
-              if (onGoToTab != null) {
-                onGoToTab!(4);
-              } else {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const NotesScreen()),
-                );
-              }
-            },
-          ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                icon: Icons.auto_awesome,
+                label: 'AI replies',
+                value: aiReplies.toString(),
+                color: const Color(0xFF5B54D6),
+                onTap: () {
+                  if (onGoToTab != null) onGoToTab!(3);
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                icon: Icons.event_note_rounded,
+                label: 'Notes',
+                value: activeNotesCount.toString(),
+                color: const Color(0xFF9333EA),
+                onTap: () {
+                  if (onGoToTab != null) {
+                    onGoToTab!(4);
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const NotesScreen()),
+                    );
+                  }
+                },
+              ),
+            ),
+          ],
         ),
+        _buildDailyLimitBar(context, ref, dailyReplies),
       ],
+    );
+  }
+
+  Widget _buildDailyLimitBar(
+      BuildContext context, WidgetRef ref, int dailyReplies) {
+    final settings = ref.watch(appSettingsProvider);
+    final int limit;
+    switch (settings.aiModelType) {
+      case 'groq_api':
+        limit = settings.groqReplyLimit;
+        break;
+      case 'gemini_api':
+        limit = settings.geminiReplyLimit;
+        break;
+      default:
+        limit = settings.localReplyLimit;
+    }
+    if (limit <= 0) return const SizedBox.shrink();
+    final c = DraftColors.of(context);
+    final fraction = (dailyReplies / limit).clamp(0.0, 1.0);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Daily limit',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: c.mut)),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: fraction,
+                  minHeight: 8,
+                  backgroundColor: c.s2,
+                  valueColor: AlwaysStoppedAnimation<Color>(c.pri),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text('$dailyReplies of $limit',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: c.mut)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentActivity(BuildContext context, WidgetRef ref) {
+    final logs = ref.watch(logsProvider);
+    final c = DraftColors.of(context);
+    final sorted = [...logs]..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+    final recent = sorted.take(3).toList();
+    if (recent.isEmpty) return const SizedBox.shrink();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Recent activity',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: c.tx)),
+                if (onGoToTab != null)
+                  TextButton(
+                    onPressed: () => onGoToTab!(3),
+                    child: const Text('All logs'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ...recent.map((log) {
+              final isWa = log.appName.toLowerCase().contains('whats');
+              final badgeColor =
+                  isWa ? const Color(0xFF1D7A4D) : const Color(0xFFA8326A);
+              final source = log.ruleId.isNotEmpty ? 'Rule' : 'AI';
+              final time = DateFormat.jm().format(log.dateTime);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 14,
+                      backgroundColor: badgeColor,
+                      child: Text(isWa ? 'W' : 'I',
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 12)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        log.sender,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: c.tx),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '$source reply, $time',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: c.mut),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSetupChecklist(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(appSettingsProvider);
+    final perms = ref.watch(permissionStatusProvider);
+    final c = DraftColors.of(context);
+    final steps = <bool>[
+      perms['notificationListener'] ?? false,
+      perms['postNotification'] ?? false,
+      perms['batteryOptimization'] ?? false,
+      settings.confirmBeforeReply,
+      settings.ignoreGroupChats,
+      settings.contactWhitelistEnabled,
+      settings.whatsappEnabled || settings.instagramEnabled,
+    ];
+    final done = steps.where((s) => s).length;
+    if (done == steps.length) return const SizedBox.shrink();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Setup checklist',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(color: c.tx)),
+                  const SizedBox(height: 4),
+                  Text('$done of ${steps.length} steps done',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: c.mut)),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              ),
+              child: const Text('Open'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
