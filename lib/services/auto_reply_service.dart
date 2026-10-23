@@ -47,6 +47,29 @@ class AutoReplyService {
     if (fn != null) _onReplyCompletedListeners.add(fn);
   }
 
+  /// Runs every completed listener. One throwing listener must not stop the
+  /// others, otherwise a status card can stay stuck.
+  static void _notifyReplyCompleted() {
+    for (final fn in List<VoidCallback>.of(_onReplyCompletedListeners)) {
+      try {
+        fn();
+      } catch (e) {
+        print('AutoReplyService completed listener error: $e');
+      }
+    }
+  }
+
+  static void _notifyReplyScheduled(Map<String, dynamic> data) {
+    for (final fn
+        in List<Function(Map<String, dynamic>)>.of(_onReplyScheduledListeners)) {
+      try {
+        fn(data);
+      } catch (e) {
+        print('AutoReplyService scheduled listener error: $e');
+      }
+    }
+  }
+
   AutoReplyService({
     required RuleRepository ruleRepository,
     required LogRepository logRepository,
@@ -100,21 +123,27 @@ class AutoReplyService {
         break;
       case 'onReplyFailed':
         print('AutoReplyService: reply failed — ${call.arguments}');
-        for (final fn in _onReplyCompletedListeners) fn();
+        _notifyReplyCompleted();
         break;
       case 'onReplySuccess':
+        // Clear the status cards first. The log write below touches Hive and
+        // re-sorts every log, and the cards used to wait for it.
+        _notifyReplyCompleted();
         if (_instance != null && call.arguments != null) {
-          final data =
-              json.decode(call.arguments as String) as Map<String, dynamic>;
-          await _instance!._logReply(data);
+          try {
+            final data =
+                json.decode(call.arguments as String) as Map<String, dynamic>;
+            await _instance!._logReply(data);
+          } catch (e) {
+            print('AutoReplyService onReplySuccess error: $e');
+          }
         }
-        for (final fn in _onReplyCompletedListeners) fn();
         break;
       case 'onReplyScheduled':
         if (call.arguments != null) {
           final data =
               json.decode(call.arguments as String) as Map<String, dynamic>;
-          for (final fn in _onReplyScheduledListeners) fn(data);
+          _notifyReplyScheduled(data);
         }
         break;
       case 'onNotificationRemoved':

@@ -5,9 +5,14 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.provider.Settings
+import android.service.notification.NotificationListenerService
 import android.util.Log
 import com.replier.replier.MainActivity
 import com.replier.replier.R
@@ -16,6 +21,10 @@ import com.replier.replier.R
  * Foreground service that keeps the app process alive in the background.
  * Without this, Android kills the process and the NotificationListenerService
  * loses its connection to the RuleEngine and cannot auto-reply.
+ *
+ * It also runs a light watchdog: if the user still has notification access
+ * enabled but the listener service object is gone while the process lives,
+ * it asks Android to rebind the listener.
  */
 class AutoReplyForegroundService : Service() {
 
@@ -23,6 +32,7 @@ class AutoReplyForegroundService : Service() {
         private const val TAG = "ForegroundService"
         private const val CHANNEL_ID = "auto_reply_foreground"
         private const val NOTIFICATION_ID = 1001
+        private const val WATCHDOG_INTERVAL_MS = 60_000L
 
         fun start(context: Context) {
             val intent = Intent(context, AutoReplyForegroundService::class.java)
@@ -32,6 +42,32 @@ class AutoReplyForegroundService : Service() {
         fun stop(context: Context) {
             val intent = Intent(context, AutoReplyForegroundService::class.java)
             context.stopService(intent)
+        }
+    }
+
+    private val watchdogHandler = Handler(Looper.getMainLooper())
+    private val listenerWatchdog = object : Runnable {
+        override fun run() {
+            checkListenerBound()
+            watchdogHandler.postDelayed(this, WATCHDOG_INTERVAL_MS)
+        }
+    }
+
+    private fun checkListenerBound() {
+        try {
+            val enabled = Settings.Secure.getString(
+                contentResolver, "enabled_notification_listeners"
+            ) ?: ""
+            if (enabled.contains(packageName) &&
+                AppNotificationListenerService.getInstance() == null
+            ) {
+                Log.w(TAG, "Notification listener not running, requesting rebind")
+                NotificationListenerService.requestRebind(
+                    ComponentName(this, AppNotificationListenerService::class.java)
+                )
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Listener watchdog check failed: ${e.message}")
         }
     }
 
@@ -47,16 +83,25 @@ class AutoReplyForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Foreground service started")
+        watchdogHandler.removeCallbacks(listenerWatchdog)
+        watchdogHandler.postDelayed(listenerWatchdog, WATCHDOG_INTERVAL_MS)
         // START_STICKY: Android will restart this service if it gets killed
         return START_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        watchdogHandler.removeCallbacks(listenerWatchdog)
         Log.d(TAG, "Foreground service destroyed — restarting")
-        // Restart self if destroyed
-        val restartIntent = Intent(applicationContext, AutoReplyForegroundService::class.java)
-        if(RuleEngine(this).isMasterEnabled()) startForegroundService(restartIntent)
+        // Restart self if destroyed. On Android 12+ starting a foreground
+        // service from the background can throw; do not crash the process
+        // that also hosts the notification listener.
+        try {
+            val restartIntent = Intent(applicationContext, AutoReplyForegroundService::class.java)
+            if(RuleEngine(this).isMasterEnabled()) startForegroundService(restartIntent)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not restart foreground service: ${e.message}")
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
