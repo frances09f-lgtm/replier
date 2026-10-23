@@ -3,6 +3,7 @@ import '../models/message_event.dart';
 import '../services/ai/reply_settings.dart';
 import '../state/controller.dart';
 import 'local_settings.dart';
+import 'settings_style.dart';
 
 class ReplierHome extends StatefulWidget {
   const ReplierHome({super.key, required this.controller});
@@ -47,7 +48,14 @@ class _ReplierHomeState extends State<ReplierHome> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Replier')),
+      appBar: AppBar(
+        title: const Text('Replier'),
+        actions: [IconButton(
+          tooltip: 'Settings',
+          icon: const Icon(Icons.settings_outlined),
+          onPressed: () => setState(() => _tab = 2),
+        )],
+      ),
       body: Column(
         children: [
           if (c.legacyInstalled) _LegacyCard(c: c),
@@ -57,7 +65,7 @@ class _ReplierHomeState extends State<ReplierHome> with WidgetsBindingObserver {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
+        selectedIndex: _tab == 2 ? 0 : _tab,
         onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: const [
           NavigationDestination(
@@ -65,10 +73,6 @@ class _ReplierHomeState extends State<ReplierHome> with WidgetsBindingObserver {
             label: 'Dashboard',
           ),
           NavigationDestination(icon: Icon(Icons.list_alt), label: 'Logs'),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            label: 'Settings',
-          ),
         ],
       ),
     );
@@ -451,57 +455,124 @@ class _Settings extends StatefulWidget {
 }
 
 class _SettingsState extends State<_Settings> {
+  bool? _dark;
+
   @override
   Widget build(BuildContext context) {
     final c = widget.c;
-    return ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        const ListTile(
-          title: Text('Review before sending'),
-          subtitle: Text(
-            'Always on. Replier never sends an AI reply automatically.',
+    final dark = _dark ?? Theme.of(context).brightness == Brightness.dark;
+    return Theme(
+      data: settingsTheme(dark),
+      child: Builder(builder: (context) {
+        final colors = Theme.of(context).colorScheme;
+        return ColoredBox(
+          color: colors.surface,
+          child: ListView(
+            key: const PageStorageKey('orion-settings'),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+            children: [
+              Text('Settings', style: TextStyle(fontSize: 42,
+                  fontWeight: FontWeight.w600, letterSpacing: -1.2,
+                  color: colors.onSurface)),
+              const SizedBox(height: 8),
+              Text('Your reply settings. Existing reply behavior is unchanged.',
+                  style: TextStyle(color: colors.onSurfaceVariant)),
+              const SizedBox(height: 16),
+              SettingsSection(title: 'Appearance', icon: Icons.dark_mode_outlined,
+                child: Row(children: [
+                  Expanded(child: _themePick(context, 'Light', false, dark)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _themePick(context, 'Dark', true, dark)),
+                ])),
+              SettingsSection(title: 'Auto reply', icon: Icons.bolt_outlined, alt: true,
+                child: Column(children: [
+                  SwitchListTile(
+                    title: const Text('Master reply switch'),
+                    subtitle: const Text('Turns message capture and reply drafts on or off.'),
+                    value: c.masterEnabled,
+                    onChanged: c.masterSaving ? null : (on) async {
+                      try {
+                        await c.setMaster(on);
+                      } catch (_) {
+                        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Could not change the master switch. Try again.')));
+                      }
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  const ListTile(
+                    title: Text('Confirm before reply'),
+                    subtitle: Text('Always on. Review and approve each reply before sending.'),
+                    trailing: Icon(Icons.lock_outline),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Reply as me'),
+                    subtitle: const Text('AI drafts replies in your own first-person voice.'),
+                    value: c.replyAsUser,
+                    onChanged: (val) async {
+                      await c.setReplyAsUser(val);
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                  const ListTile(title: Text('Daily reply limit'),
+                    subtitle: Text('Not available in this branch. No new limit is applied.')),
+                ])),
+              SettingsSection(title: 'AI provider', icon: Icons.auto_awesome_outlined,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  ListTile(title: const Text('Reply brain'), subtitle: Text(c.brainName)),
+                  if (c.replySettings != null) _GroqSettings(c: c),
+                  if (c.replySettings != null) LocalModelSettings(c: c),
+                  const SizedBox(height: 8),
+                  const Text('Gemini and Cloudflare are not available in this branch.'),
+                  const SizedBox(height: 12),
+                  Container(padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: colors.tertiaryContainer,
+                      borderRadius: BorderRadius.circular(20)),
+                    child: Text('On-device models keep message text on this phone. Groq receives message text and recent notification context when selected.',
+                      style: TextStyle(color: colors.onTertiaryContainer))),
+                ])),
+              const SettingsSection(title: 'Schedule', icon: Icons.schedule_outlined, alt: true,
+                child: Text('Scheduled hours and days are not available in this branch. No schedule is applied.')),
+              const SettingsSection(title: 'Contacts', icon: Icons.person_outline,
+                child: Text('Contact whitelist and group-chat settings are not available in this branch. Existing message filtering is unchanged.')),
+              SettingsSection(title: 'Apps and access', icon: Icons.grid_view_outlined, alt: true,
+                child: Column(children: [
+                  ListTile(title: const Text('Notification access'),
+                    subtitle: Text(c.notifAccess ? 'Granted' : 'Not granted'),
+                    trailing: const Icon(Icons.open_in_new, size: 18),
+                    onTap: c.bridge.openNotificationAccessSettings),
+                  ListTile(title: const Text('Accessibility access'),
+                    subtitle: Text(c.accessibilityAccess ? 'Granted' : 'Not granted'),
+                    trailing: const Icon(Icons.open_in_new, size: 18),
+                    onTap: c.bridge.openAccessibilitySettings),
+                  const ListTile(title: Text('Listening apps'),
+                    subtitle: Text('App-specific switches are not available in this branch.')),
+                  ListTile(title: const Text('App info'),
+                    subtitle: const Text('Fix "Restricted setting": tap the grayed toggle first, then App info > three-dot menu > Allow restricted settings'),
+                    trailing: const Icon(Icons.open_in_new, size: 18),
+                    onTap: c.bridge.openAppSettings),
+                ])),
+              const SettingsSection(title: 'About', icon: Icons.info_outline,
+                child: Text('Settings UI preview on the local-reply-engine branch. No release or version change. Clear logs and reset settings are not added.')),
+            ],
           ),
-        ),
-        const Divider(),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Reply as me'),
-          subtitle: const Text(
-            'Draft replies in your first-person voice instead of as a third-party assistant.',
-          ),
-          value: c.replyAsUser,
-          onChanged: (val) async {
-            await c.setReplyAsUser(val);
-            if (mounted) setState(() {});
-          },
-        ),
-        const Divider(),
-        ListTile(title: const Text('Reply brain'), subtitle: Text(c.brainName)),
-        if (c.replySettings != null) _GroqSettings(c: c),
-        if (c.replySettings != null) LocalModelSettings(c: c),
-        ListTile(
-          title: const Text('Notification access'),
-          subtitle: Text(c.notifAccess ? 'Granted' : 'Not granted'),
-          trailing: const Icon(Icons.open_in_new, size: 18),
-          onTap: c.bridge.openNotificationAccessSettings,
-        ),
-        ListTile(
-          title: const Text('Accessibility access'),
-          subtitle: Text(c.accessibilityAccess ? 'Granted' : 'Not granted'),
-          trailing: const Icon(Icons.open_in_new, size: 18),
-          onTap: c.bridge.openAccessibilitySettings,
-        ),
-        ListTile(
-          title: const Text('App info'),
-          subtitle: const Text(
-            'Fix "Restricted setting": tap the grayed toggle first, then App info > three-dot menu > Allow restricted settings',
-          ),
-          trailing: const Icon(Icons.open_in_new, size: 18),
-          onTap: c.bridge.openAppSettings,
-        ),
-      ],
+        );
+      }),
     );
+  }
+
+  Widget _themePick(BuildContext context, String label, bool value, bool dark) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(selected: value == dark,
+      child: OutlinedButton(
+        onPressed: () => setState(() => _dark = value),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 72),
+          backgroundColor: value == dark ? colors.primaryContainer : colors.surface,
+          foregroundColor: value == dark ? colors.onPrimaryContainer : colors.onSurface,
+          side: BorderSide(color: value == dark ? colors.primary : colors.outline, width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22))),
+        child: Text(label)));
   }
 }
 
@@ -571,6 +642,7 @@ class _GroqSettingsState extends State<_GroqSettings> {
   late String model;
   late bool enabled;
   bool saving = false;
+  bool obscureKey = true;
 
   @override
   void initState() {
@@ -604,22 +676,26 @@ class _GroqSettingsState extends State<_GroqSettings> {
           const SizedBox(height: 12),
           TextField(
             controller: keyField,
-            obscureText: true,
+            obscureText: obscureKey,
             enableSuggestions: false,
             autocorrect: false,
             decoration: InputDecoration(
               labelText: widget.c.replySettings!.key.isEmpty
                   ? 'Paste your Groq key'
                   : 'Key saved - paste to replace',
+              suffixIcon: TextButton(
+                onPressed: () => setState(() => obscureKey = !obscureKey),
+                child: Text(obscureKey ? 'Show' : 'Hide')),
               border: const OutlineInputBorder(),
             ),
           ),
           const Text(
             'Encrypted on this phone. Never built into the APK. Do not send keys in chat.',
-            style: TextStyle(fontSize: 12, color: Colors.white70),
+            style: TextStyle(fontSize: 12),
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: model,
             items: ReplySettings.models
                 .map(

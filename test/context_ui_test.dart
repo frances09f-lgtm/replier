@@ -90,7 +90,19 @@ void main() {
     c.notifyListeners();
     await t.pumpAndSettle();
     await capture('replier-context-draft');
-    await t.tap(find.text('Settings'));
+    expect(find.byType(NavigationDestination), findsNWidgets(2));
+    await t.tap(find.byTooltip('Settings'));
+    await t.pumpAndSettle();
+    expect(find.text('Appearance'), findsOneWidget);
+    await t.tap(find.text('Light'));
+    await t.pumpAndSettle();
+    expect(find.text('Appearance'), findsOneWidget);
+    await t.tap(find.text('Dark'));
+    await t.pumpAndSettle();
+    await t.drag(
+      find.byKey(const PageStorageKey('orion-settings')),
+      const Offset(0, -400),
+    );
     await t.pumpAndSettle();
     expect(find.text('Groq API settings'), findsOneWidget);
     expect(find.text('Use Groq for drafts'), findsOneWidget);
