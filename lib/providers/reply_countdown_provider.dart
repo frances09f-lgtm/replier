@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auto_reply_service.dart';
 
@@ -51,14 +52,22 @@ class ReplyCountdownData {
 
 /// Notifier for reply countdown state
 class ReplyCountdownNotifier extends StateNotifier<ReplyCountdownData> {
+  /// How long a countdown may sit at 0s waiting for the native side to report
+  /// success or failure before the card clears itself. Native can drop a
+  /// scheduled reply (cancelled, master switch off, service destroyed) without
+  /// sending a terminal event, which used to leave "Sending in 0s" forever.
+  static const Duration staleAfterDue = Duration(seconds: 30);
+
   Timer? _countdownTimer;
+  Timer? _staleTimer;
 
   ReplyCountdownNotifier() : super(ReplyCountdownData()) {
-    AutoReplyService.onReplyScheduled = _onReplyScheduled;
+    AutoReplyService.onReplyScheduled = handleReplyScheduled;
     AutoReplyService.onReplyCompleted = _onReplyCompleted;
   }
 
-  void _onReplyScheduled(Map<String, dynamic> data) {
+  @visibleForTesting
+  void handleReplyScheduled(Map<String, dynamic> data) {
     final delayMs = (data['delayMs'] as num?)?.toInt() ?? 0;
     final sender = data['sender'] as String? ?? '';
     final replyText = data['replyText'] as String? ?? '';
@@ -68,6 +77,7 @@ class ReplyCountdownNotifier extends StateNotifier<ReplyCountdownData> {
         : DateTime.now();
 
     _countdownTimer?.cancel();
+    _staleTimer?.cancel();
 
     final elapsed = DateTime.now().millisecondsSinceEpoch -
         scheduledAt.millisecondsSinceEpoch;
@@ -86,11 +96,23 @@ class ReplyCountdownNotifier extends StateNotifier<ReplyCountdownData> {
       _countdownTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
         _tick();
       });
+    } else {
+      _armStaleGuard();
     }
+  }
+
+  void _armStaleGuard() {
+    _staleTimer?.cancel();
+    _staleTimer = Timer(staleAfterDue, () {
+      if (mounted && state.isActive) {
+        state = ReplyCountdownData();
+      }
+    });
   }
 
   void _onReplyCompleted() {
     _countdownTimer?.cancel();
+    _staleTimer?.cancel();
     state = ReplyCountdownData();
   }
 
@@ -101,6 +123,7 @@ class ReplyCountdownNotifier extends StateNotifier<ReplyCountdownData> {
     if (remaining <= 0) {
       _countdownTimer?.cancel();
       state = state.copyWith(remainingMs: 0);
+      _armStaleGuard();
       return;
     }
     state = state.copyWith(remainingMs: remaining);
@@ -109,6 +132,7 @@ class ReplyCountdownNotifier extends StateNotifier<ReplyCountdownData> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _staleTimer?.cancel();
     AutoReplyService.onReplyScheduled = null;
     AutoReplyService.onReplyCompleted = null;
     super.dispose();

@@ -1,12 +1,12 @@
-## Replier v1.1.5
+## Replier v1.1.6
 
-### Fix: stuck "Sending the reply" card
-The dashboard card could stay on "Sending the reply" when no final event arrived. The sending stage now has a 30 second guard after its countdown ends, so the card clears itself instead of staying on screen. (pull request #2)
+### Fix: dashboard card stuck on "Sending the reply"
+- An overdue reply countdown card now clears itself after 30 seconds instead of staying at 0 seconds.
+- The dashboard listeners now start when the app launches, so early events are not missed.
+- Reply cards no longer wait on the log save before they update.
+- A 60 second check restarts the message listener if Android drops it, and the background service restart is guarded against errors.
 
-### Settings restyle
-The Settings screen is regrouped into rounded cards with icon headings: Permissions, App Settings, Schedule, AI Auto-Reply, Contact Filtering and Appearance. Appearance has a Light / Dark choice, and the Groq API key field has a Show / Hide button. Settings still opens from the gear at the top right. (new pull request on top of this version, replacing the draft built on the older code)
-
-Same options and the same stored values as before. Reply logic, storage and permissions are not changed.
+The Settings screen is not changed. Reply logic, storage and permissions are the same as v1.1.5 apart from the guards above. (pull request #5)
 
 ### Not verified
-Nothing was tested on a phone. CI ran analyze, tests, the release APK build and the Android unit tests.
+Nothing was tested on a phone. The causes above were found by reading the code, so it is not known which one affects the phone. CI ran analyze, tests, the release APK build and the Android unit tests.

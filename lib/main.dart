@@ -6,6 +6,8 @@ import 'core/injection_container.dart';
 import 'core/provider_container.dart';
 import 'providers/settings_provider.dart';
 import 'providers/pipeline_status_provider.dart';
+import 'providers/analysis_status_provider.dart';
+import 'providers/reply_countdown_provider.dart';
 import 'providers/note_provider.dart';
 import 'repositories/log_repository.dart';
 import 'repositories/rule_repository.dart';
@@ -34,6 +36,12 @@ void main() async {
   // Eagerly initialise pipeline status provider so it registers
   // MethodChannel callbacks before the first notification arrives.
   globalProviderContainer.read(pipelineStatusProvider);
+
+  // Same for the analysis and reply-countdown providers. They used to be
+  // created only when the dashboard first built, so events native sent before
+  // that were dropped and the cards could show stale or empty state.
+  globalProviderContainer.read(analysisStatusProvider);
+  globalProviderContainer.read(replyCountdownProvider);
 
   // Eagerly load notes so native reminder alarms (5 minutes before each
   // meeting/deadline) are armed as soon as the app starts.
