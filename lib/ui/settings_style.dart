@@ -52,7 +52,7 @@ class SettingsSection extends StatelessWidget {
       decoration: BoxDecoration(color: colors.surfaceContainer,
         borderRadius: BorderRadius.circular(32)),
       clipBehavior: Clip.antiAlias,
-      child: Stack(children: [
+      child: Material(type: MaterialType.transparency, child: Stack(children: [
         Positioned(right: alt ? null : -48, left: alt ? -56 : null,
           top: alt ? null : -48, bottom: alt ? -56 : null,
           child: ExcludeSemantics(child: IgnorePointer(child: Transform.rotate(
@@ -77,7 +77,7 @@ class SettingsSection extends StatelessWidget {
             const SizedBox(height: 12),
             child,
           ])),
-      ]),
+      ])),
     );
   }
 }

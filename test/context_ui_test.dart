@@ -99,7 +99,10 @@ void main() {
     expect(find.text('Appearance'), findsOneWidget);
     await t.tap(find.text('Dark'));
     await t.pumpAndSettle();
-    await t.scrollUntilVisible(find.text('Groq API settings'), 300);
+    await t.drag(
+      find.byKey(const PageStorageKey('orion-settings')),
+      const Offset(0, -400),
+    );
     await t.pumpAndSettle();
     expect(find.text('Groq API settings'), findsOneWidget);
     expect(find.text('Use Groq for drafts'), findsOneWidget);
