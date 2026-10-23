@@ -1891,7 +1891,14 @@ class _SettingsCard extends StatelessWidget {
               children: [
                 Icon(icon, size: 20, color: c.pri),
                 const SizedBox(width: 10),
-                Text(title, style: DraftText.display(18, c.tx)),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DraftText.display(18, c.tx),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
