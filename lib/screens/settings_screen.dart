@@ -59,11 +59,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomPadding + 24),
         children: [
           // Permissions section
-          Text(
-            'Permissions',
-            style: DraftText.eyebrow(DraftColors.of(context).mut),
-          ),
-          const SizedBox(height: 16),
+_SettingsCard(
+            title: 'Permissions',
+            icon: Icons.shield_outlined,
+            children: [
 
           _PermissionTile(
             title: 'Notification Access',
@@ -93,14 +92,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 .openBatteryOptimizationSettings(),
           ),
 
-          const SizedBox(height: 24),
-
-          // App settings section
-          Text(
-            'App Settings',
-            style: DraftText.eyebrow(DraftColors.of(context).mut),
+          ],
           ),
           const SizedBox(height: 16),
+
+          // App settings section
+          _SettingsCard(
+            title: 'App Settings',
+            icon: Icons.tune,
+            children: [
 
           SwitchListTile(
             title: const Text('WhatsApp'),
@@ -159,14 +159,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             },
           ),
 
-          const SizedBox(height: 24),
+          ],
+          ),
+          const SizedBox(height: 16),
 
           // Schedule section
-          Text(
-            'Schedule',
-            style: DraftText.eyebrow(DraftColors.of(context).mut),
-          ),
-          const SizedBox(height: 8),
+          _SettingsCard(
+            title: 'Schedule',
+            icon: Icons.schedule,
+            children: [
           Text(
             'Set time windows when auto-reply is active',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -237,12 +238,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const SizedBox(height: 16),
           ],
 
-          const SizedBox(height: 24),
-          Text(
-            'AI Auto-Reply',
-            style: DraftText.eyebrow(DraftColors.of(context).mut),
+          ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
+          _SettingsCard(
+            title: 'AI Auto-Reply',
+            icon: Icons.auto_awesome_outlined,
+            children: [
           Text(
             'Choose an AI engine for instant auto-replies when no specific rule matches.',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -502,38 +504,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ],
 
-          const SizedBox(height: 24),
-
-          // Contact Filtering section
-          Text(
-            'Contact Filtering',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold),
+          ],
           ),
           const SizedBox(height: 16),
+
+          // Contact Filtering section
+          _SettingsCard(
+            title: 'Contact Filtering',
+            icon: Icons.people_outline,
+            children: [
 
           _buildContactWhitelistSection(context, ref, settings),
           const SizedBox(height: 8),
           _buildContactBlacklistSection(context, ref, settings),
 
-          const SizedBox(height: 24),
-
-          // Appearance section
-          Text(
-            'Appearance',
-            style: DraftText.eyebrow(DraftColors.of(context).mut),
+          ],
           ),
           const SizedBox(height: 16),
 
-          SwitchListTile(
-            title: const Text('Dark Mode'),
-            subtitle: const Text('Use dark theme'),
-            value: settings.darkMode,
-            onChanged: (_) {
-              ref.read(appSettingsProvider.notifier).toggleDarkMode();
-            },
+          // Appearance section
+          _SettingsCard(
+            title: 'Appearance',
+            icon: Icons.palette_outlined,
+            children: [
+              Text('Theme', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text('Choose Light or Dark', style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment<bool>(value: false, label: Text('Light')),
+                    ButtonSegment<bool>(value: true, label: Text('Dark')),
+                  ],
+                  selected: {settings.darkMode},
+                  showSelectedIcon: false,
+                  onSelectionChanged: (choice) {
+                    if (choice.first != settings.darkMode) {
+                      ref.read(appSettingsProvider.notifier).toggleDarkMode();
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 24),
@@ -938,13 +952,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     hintText: 'Enter API key',
                     border: const OutlineInputBorder(),
                     isDense: true,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                          obscureKey ? Icons.visibility : Icons.visibility_off,
-                          size: 20),
+                    suffixIcon: TextButton(
                       onPressed: () {
                         setDialogState(() => obscureKey = !obscureKey);
                       },
+                      child: Text(obscureKey ? 'Show' : 'Hide'),
                     ),
                   ),
                 ),
@@ -1845,6 +1857,46 @@ class _PermissionTile extends StatelessWidget {
                 : ElevatedButton(
                     onPressed: onGrant, child: const Text('Grant')),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Rounded section card with an icon heading used on the Settings screen
+class _SettingsCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
+
+  const _SettingsCard({
+    required this.title,
+    required this.icon,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = DraftColors.of(context);
+    return Material(
+      color: c.s1,
+      borderRadius: BorderRadius.circular(24),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 20, color: c.pri),
+                const SizedBox(width: 10),
+                Text(title, style: DraftText.display(18, c.tx)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...children,
+          ],
         ),
       ),
     );
