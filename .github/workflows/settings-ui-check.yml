@@ -1,0 +1,27 @@
+name: Settings UI check
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [feature/local-reply-engine]
+  push:
+    branches: [ui/settings-orion-draft]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.6'
+      - run: flutter pub get
+      - run: flutter test
