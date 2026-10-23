@@ -72,4 +72,55 @@ void main() {
       expect(notifier.state.isIdle, isTrue);
     });
   });
+
+  test('a sending stage with no countdown and no terminal event clears itself',
+      () {
+    fakeAsync((async) {
+      final notifier = PipelineStatusNotifier();
+      addTearDown(notifier.dispose);
+
+      // Reply delay 0: the reply is already due when native announces it, so
+      // no countdown runs. Native then skips the send without any terminal
+      // event (for example the master switch was turned off).
+      notifier.handleReplyScheduled({
+        'sender': 'Demo contact',
+        'delayMs': 0,
+        'scheduledAt': DateTime.now().millisecondsSinceEpoch,
+      });
+      expect(notifier.state.stage, PipelineStage.sending);
+      expect(notifier.state.countdownSeconds, 0);
+
+      async.elapse(const Duration(seconds: 20));
+      expect(notifier.state.stage, PipelineStage.sending);
+
+      async.elapse(const Duration(seconds: 11));
+      expect(notifier.state.isIdle, isTrue);
+    });
+  });
+
+  test('events queued behind a stuck sending stage show once it clears', () {
+    fakeAsync((async) {
+      final notifier = PipelineStatusNotifier();
+      addTearDown(notifier.dispose);
+
+      notifier.handleReplyScheduled({
+        'sender': 'Demo contact',
+        'delayMs': 0,
+        'scheduledAt': DateTime.now().millisecondsSinceEpoch,
+      });
+      // A new message arrives while the old send is wedged. It is held back.
+      AutoReplyService.onPipelineStatus
+          ?.call({'state': 'got_message', 'sender': 'Next contact'});
+      expect(notifier.state.stage, PipelineStage.sending);
+
+      async.elapse(const Duration(seconds: 31));
+      // The guard cleared the stuck send and the queued message went through.
+      expect(notifier.state.stage, PipelineStage.gotMessage);
+      expect(notifier.state.sender, 'Next contact');
+
+      // And that card recovers on its own as well.
+      async.elapse(const Duration(seconds: 46));
+      expect(notifier.state.isIdle, isTrue);
+    });
+  });
 }

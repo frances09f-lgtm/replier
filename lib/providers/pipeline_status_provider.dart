@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/auto_reply_service.dart';
 
@@ -51,6 +52,10 @@ class PipelineStatusNotifier extends StateNotifier<PipelineStatusData> {
     PipelineStage.sending: 0, // sending runs its real countdown
   };
 
+  /// How long a sending stage may stay after its countdown ended (or was never
+  /// needed) before the card is cleared without a terminal event.
+  static const sendingGuardDuration = Duration(seconds: 30);
+
   final Queue<_PipelineEvent> _queue = Queue();
   bool _processing = false;
   Timer? _stageTimer;
@@ -59,7 +64,7 @@ class PipelineStatusNotifier extends StateNotifier<PipelineStatusData> {
 
   PipelineStatusNotifier() : super(const PipelineStatusData()) {
     AutoReplyService.onPipelineStatus = _onPipelineStatus;
-    AutoReplyService.onReplyScheduled = _onReplyScheduled;
+    AutoReplyService.onReplyScheduled = handleReplyScheduled;
     AutoReplyService.onReplyCompleted = _onReplyCompleted;
   }
 
@@ -90,7 +95,8 @@ class PipelineStatusNotifier extends StateNotifier<PipelineStatusData> {
     _enqueue(_PipelineEvent(type, sender: sender));
   }
 
-  void _onReplyScheduled(Map<String, dynamic> data) {
+  @visibleForTesting
+  void handleReplyScheduled(Map<String, dynamic> data) {
     final delayMs = (data['delayMs'] as num?)?.toInt() ?? 0;
     final sender = data['sender'] as String? ?? '';
     final scheduledAtMs = (data['scheduledAt'] as num?)?.toInt();
@@ -190,6 +196,9 @@ class PipelineStatusNotifier extends StateNotifier<PipelineStatusData> {
   void _startSending(String sender, int delayMs, DateTime scheduledAt) {
     _cancelStageTimer();
     _cancelCountdownTimer();
+    // A guard left over from an earlier stage must not carry into sending.
+    _stalenessTimer?.cancel();
+    _stalenessTimer = null;
 
     final targetTime = scheduledAt.add(Duration(milliseconds: delayMs));
     final initialRemainingMs =
@@ -211,20 +220,36 @@ class PipelineStatusNotifier extends StateNotifier<PipelineStatusData> {
           _cancelCountdownTimer();
           state = state.copyWith(countdownSeconds: 0);
           // Staleness guard: auto-clear if terminal event never arrives
-          _stalenessTimer = Timer(const Duration(seconds: 30), () {
-            if (!state.isIdle) {
-              state = const PipelineStatusData();
-              _processing = false;
-            }
-          });
+          _armSendingGuard();
         } else if (remSecs != state.countdownSeconds) {
           state = state.copyWith(countdownSeconds: remSecs);
         }
       });
+    } else {
+      // The reply is already due (reply delay 0, or the scheduled event came
+      // in late). No countdown runs, so nothing else would ever arm the guard:
+      // if native then skips the send without a terminal event, the card and
+      // the whole event queue stayed on "Sending the reply." for good.
+      _armSendingGuard();
     }
 
     // Sending holds until onReplyCompleted — don't call _processNext here
     _processing = true;
+  }
+
+  /// Clears a sending stage whose terminal event never arrived, then lets any
+  /// events queued behind it through.
+  void _armSendingGuard() {
+    _stalenessTimer?.cancel();
+    _stalenessTimer = Timer(sendingGuardDuration, () {
+      _stalenessTimer = null;
+      if (state.stage == PipelineStage.sending) {
+        _cancelTimers();
+        state = const PipelineStatusData();
+        _processing = false;
+        _processNext();
+      }
+    });
   }
 
   // ── Timer helpers ─────────────────────────────────────────────────────────
