@@ -22,16 +22,6 @@ import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * Notification listener that auto-replies entirely on the native side.
- *
- * Rule matching and settings are read from SharedPreferences via RuleEngine,
- * so this works whether or not the Flutter engine / UI is running.
- *
- * The MethodChannel is used only to notify the Flutter UI about events
- * (e.g. updating the logs screen). It is always optional — if Flutter
- * isn't running, replies still go out.
- */
 class AppNotificationListenerService : NotificationListenerService() {
 
     companion object {
@@ -52,11 +42,9 @@ class AppNotificationListenerService : NotificationListenerService() {
         const val EXTRA_IS_AI_REPLY = "is_ai_reply"
         const val EXTRA_AI_MODEL_TYPE = "ai_model_type"
 
-        // Optional Flutter channel — used only for UI updates, not for core logic
         private var methodChannel: MethodChannel? = null
         private var instance: AppNotificationListenerService? = null
 
-        // Chatbot context from the Flutter chatbot — injected into AI auto-reply system prompt
         private var chatbotContext: String = ""
 
         fun setMethodChannel(channel: MethodChannel) {
@@ -71,9 +59,31 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
 
         fun getChatbotContext(): String = chatbotContext
+
+        private val pipelineEvents = ArrayDeque<String>()
+        private const val PIPELINE_EVENTS_MAX = 60
+
+        fun recordPipelineEvent(reason: String) {
+            val event = JSONObject().apply {
+                put("id", "${System.currentTimeMillis()}-${(0..999999).random()}")
+                put("ts", System.currentTimeMillis())
+                put("reason", reason)
+            }.toString()
+            synchronized(pipelineEvents) {
+                pipelineEvents.addLast(event)
+                while (pipelineEvents.size > PIPELINE_EVENTS_MAX) pipelineEvents.removeFirst()
+            }
+        }
+
+        fun drainPipelineEvents(): List<String> {
+            synchronized(pipelineEvents) {
+                val out = pipelineEvents.toList()
+                pipelineEvents.clear()
+                return out
+            }
+        }
     }
 
-    /** Data class for a reply pending user confirmation */
     data class PendingReply(
         val confirmId: String,
         val notificationKey: String,
@@ -89,7 +99,6 @@ class AppNotificationListenerService : NotificationListenerService() {
         val createdAt: Long = System.currentTimeMillis(),
     )
 
-    /** Data class for a reply pending delayed execution */
     data class ScheduledReply(
         val runnable: Runnable,
         val wakeLock: PowerManager.WakeLock?,
@@ -104,21 +113,14 @@ class AppNotificationListenerService : NotificationListenerService() {
         val sbnId: Int?,
     )
 
-    /** In-memory store of pending confirmations, keyed by confirmId */
     private val pendingReplies = ConcurrentHashMap<String, PendingReply>()
     private var confirmReceiver: BroadcastReceiver? = null
 
-    /** Map of active scheduled replies per sender to prevent overlapping/duplicate timers */
     private val activeScheduledReplies = ConcurrentHashMap<String, ScheduledReply>()
 
-    /** Last genuine incoming message handled per sender: normalized text -> timestamp.
-     * Used to ignore notification re-posts of a message we already processed,
-     * without blocking NEW messages from the same sender (a blanket cooldown
-     * would wrongly swallow fast follow-ups like "😄 Haa haa" 2s after our reply). */
     private val lastHandledIncoming = ConcurrentHashMap<String, Pair<String, Long>>()
     private val incomingDedupeWindowMs = 60_000L
 
-    // Notification-to-reply timing (spec: measure notification -> reply sent)
     private val notificationArrivalTimes = ConcurrentHashMap<String, Long>()
 
     private val maxChatbotContextChars = 600
@@ -137,8 +139,6 @@ class AppNotificationListenerService : NotificationListenerService() {
     private var analysisRevision = 0L
     private val analysisTimers = mutableMapOf<String, Runnable>()
 
-    // Accessed on the main thread. Full snapshots are revisioned so a lifecycle
-    // refresh cannot resurrect stale attempts after a newer terminal event.
     fun analysisSnapshot(): String {
         val records = analysisAttempts.snapshot()
         return JSONObject().apply {
@@ -212,12 +212,8 @@ class AppNotificationListenerService : NotificationListenerService() {
             notifyUnsafeChatSkipped()
             return
         }
-        // Cancel any pending timer for this sender so multiple timers don't collide
         cancelScheduledReply(sender)
 
-        // Capture stable conversation identity now, while the original notification
-        // is most likely still posted. This is used later to verify we reply to
-        // the same conversation — never to a different chat with a similar name.
         val resolvedIdentity = resolveConversationIdentity(key, packageName, shortcutId, sbnTag, sbnId)
         val resolvedPackage = resolvedIdentity.first
         val resolvedShortcut = resolvedIdentity.second
@@ -235,7 +231,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             return
         }
 
-        // Keep CPU awake during delay (crucial for delays > 60s and when screen turns off)
         val wakeLock = acquireWakeLock("Reply_${sender.hashCode()}", delayMs + 5000L)
 
         val runnable = Runnable {
@@ -307,9 +302,6 @@ class AppNotificationListenerService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         super.onNotificationPosted(sbn)
-        // Never let a processing exception kill the listener silently: surface
-        // it through the standard failure path instead of dying with the
-        // status card stuck.
         try {
             processNotification(sbn)
         } catch (t: Throwable) {
@@ -343,10 +335,8 @@ class AppNotificationListenerService : NotificationListenerService() {
         val revoked = directChatGate.record(target, chatKind)
         revoked.forEach { cancelUnsafeConversation(it) }
         if (chatKind != ChatTypePolicy.Kind.DIRECT || !target.stable) {
-            // No false-default for missing metadata. Group summaries are not
-            // individual conversations; ordinary Android notification bundles
-            // are NOT, by themselves, evidence of a messaging group.
             Log.i(TAG, "Skipping auto reply: chat type=$chatKind, stable=${target.stable}")
+            recordPipelineEvent("Skipped: chat is not a confirmed one-to-one chat (type=$chatKind, stable=${target.stable})")
             return
         }
         val isGroupChat = false
@@ -354,34 +344,27 @@ class AppNotificationListenerService : NotificationListenerService() {
         val sender = normalizeSenderName(title, packageName)
         Log.d(TAG, "Pipeline event")
 
-        // Outgoing message via MessagingStyle (e.g. our RemoteInput reply echoed
-        // back with a null/“You” sender in EXTRA_MESSAGES) — never reply to it.
         if (isOutgoingMessagingStyleMessage(notification, sender)) {
             Log.d(TAG, "Pipeline event")
+            recordPipelineEvent("Skipped: outgoing message echo")
             return
         }
 
-        // NOTE: deliberately NO blanket per-sender cooldown here — it would also
-        // swallow the contact's genuine fast follow-ups (e.g. "😄 Haa haa" 2s
-        // after our reply). Our own echoes are caught precisely by
-        // isOutgoingMessagingStyleMessage above and ruleEngine.isSelfSentMessage
-        // below; re-posts of an already-handled message are caught by the
-        // incoming-dedupe check next to the self-guard.
         val now = System.currentTimeMillis()
 
-        // Avoid re-processing if an identical message from this sender is currently in delayed countdown
         val active = activeScheduledReplies[senderKey(sender)]
         if (active != null && active.originalMessage.isNotBlank() && active.originalMessage.trim().equals(message.trim(), ignoreCase = true)) {
             Log.d(TAG, "Pipeline event")
+            recordPipelineEvent("Skipped: duplicate of a message already waiting for its reply")
             return
         }
 
         if (!ruleEngine.isSenderAllowedForAutoReply(sender)) {
             Log.d(TAG, "Pipeline event")
+            recordPipelineEvent("Skipped: sender is not allowed by your contact settings")
             return
         }
 
-        // Notify Flutter UI (optional, best-effort)
         val notificationData = JSONObject().apply {
             put("packageName", packageName)
             put("appName", appName)
@@ -395,39 +378,33 @@ class AppNotificationListenerService : NotificationListenerService() {
             methodChannel?.invokeMethod("onNotificationPosted", notificationData.toString())
         }
 
-        // ── Core auto-reply logic (fully native, no Flutter needed) ──────────
 
-        // Master switch
         if (!ruleEngine.isMasterEnabled()) {
             Log.d(TAG, "Skipping: master switch is OFF")
+            recordPipelineEvent("Skipped: master switch is off")
             return
         }
 
-        // Schedule window check
+
         if (!ruleEngine.isWithinScheduleWindow()) {
             Log.d(TAG, "Skipping: outside schedule window")
+            recordPipelineEvent("Skipped: outside the schedule window")
             return
         }
 
-        // Per-app toggle
         if (!ruleEngine.isAppEnabled(packageName)) {
             Log.d(TAG, "Skipping: $packageName is disabled in settings")
+            recordPipelineEvent("Skipped: this app is disabled in settings")
             return
         }
 
-        // Direct-only safety policy is unconditional. Legacy ignoreGroupChats
-        // preferences cannot enable automatic group or unclassified replies.
 
-        // Self-reply guard
         if (ruleEngine.isSelfSentMessage(message, sender)) {
             Log.d(TAG, "Skipping: self-sent message detected")
+            recordPipelineEvent("Skipped: message looks self-sent")
             return
         }
 
-        // Incoming-dedupe: WhatsApp re-posts the same notification (same text)
-        // when our reply lands or the shade refreshes. Ignore such re-posts so
-        // we don't reply twice — but let DIFFERENT text from the same sender
-        // through immediately (no blanket cooldown).
         val incomingKey = senderKey(sender)
         val normalizedIncoming = message.trim().lowercase()
         val lastIncoming = lastHandledIncoming[incomingKey]
@@ -436,15 +413,14 @@ class AppNotificationListenerService : NotificationListenerService() {
             now - lastIncoming.second < incomingDedupeWindowMs
         ) {
             Log.d(TAG, "Pipeline event")
+            recordPipelineEvent("Skipped: same message repeated within the dedupe window")
             return
         }
         lastHandledIncoming[incomingKey] = normalizedIncoming to now
 
-        // Rule matching
         val rule = ruleEngine.findMatchingRule(message, sender = sender)
 
         if (rule == null) {
-            // Busy mode check — if user set a busy status from chatbot, use it
             val busyText = ruleEngine.getBusyReplyText()
             if (ruleEngine.isBusyModeActive() && busyText.isNotBlank()) {
                 Log.d(TAG, "Busy mode active, using busy reply: '$busyText'")
@@ -482,36 +458,25 @@ class AppNotificationListenerService : NotificationListenerService() {
                 return
             }
 
-            // AI fallback if enabled — buffer messages and batch replies
             if (ruleEngine.isAiReplyEnabled()) {
-                // Skip notification artifacts (typing indicators, "X new messages", etc.)
                 if (isNotificationArtifact(message)) {
                     Log.d(TAG, "Skipping notification artifact: '${message.take(50)}'")
+                    recordPipelineEvent("Skipped: notification artifact")
                     return
                 }
                 val modelType = ruleEngine.getAiModelType()
-                // Batch window: wait 2s for more messages before firing
                 val batchWindowMs = 2000L
                 Log.d(TAG, "No rule matched. Buffering for AI batch reply (model: $modelType, batchWindow: ${batchWindowMs}ms)...")
 
-                // Start the full analysis budget before batching/queueing/loading.
                 val conversation = AnalysisAttempts.conversationKey(
                     packageName, getShortcutId(sbn), sbn.tag, sbn.id, sbn.key)
                 val bufferedId = messageBatcher.getPendingAttemptId(conversation)
                 val attemptId = if (bufferedId != null && analysisAttempts.isActive(bufferedId)) {
-                    // This episode was already announced. Re-firing got_message
-                    // for every buffered follow-up re-pins the status card on
-                    // "Got new message" and keeps postponing its staleness
-                    // recovery, so a chatty conversation wedges the dashboard.
                     bufferedId
                 } else {
-                    // Committed to an AI reply: only now tell the UI a message
-                    // arrived, so silent skips above can never wedge the card.
                     notifyPipelineStatus("got_message", sender)
                     val attempt = analysisAttempts.begin(conversation, sender)
                     val timeout = Runnable {
-                        // Exactly-once expiry: a completed/failed/canceled attempt
-                        // never produces a false timeout error.
                         if (analysisAttempts.expireAttempt(attempt.id)) {
                             Log.e(TAG, "AI attempt expired after ${AnalysisAttempts.LIMIT_MS}ms with no engine result")
                             notifyReplyError("AI attempt timed out before any reply was ready")
@@ -544,25 +509,21 @@ class AppNotificationListenerService : NotificationListenerService() {
                 }
             } else {
                 Log.d(TAG, "No matching rule for message: '${message.take(50)}'")
+                recordPipelineEvent("Skipped: no rule matched and AI replies are off")
             }
             return
         }
 
         val replyText = rule.randomReply()
 
-        // Duplicate prevention
         if (ruleEngine.shouldPreventDuplicates() &&
             ruleEngine.wasReplyRecentlySent(sender, replyText)
         ) return
 
-        // Emit the full stage sequence now that a rule match was found
         notifyPipelineStatus("got_message", sender)
         notifyPipelineStatus("analysing", sender)
         notifyPipelineStatus("reply_ready", sender)
 
-        // Confirm before reply: show approval notification instead of sending directly.
-        // The countdown is NOT started here — it only starts once the send is actually
-        // scheduled (approval or timeout), so the visible timer always matches the real delay.
         if (ruleEngine.isConfirmBeforeReplyEnabled()) {
             showConfirmationNotification(
                 notificationKey = sbn.key,
@@ -579,7 +540,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             return
         }
 
-        // Delay + send
         scheduleDelayedReply(
             key = sbn.key,
             sender = sender,
@@ -600,10 +560,6 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
     }
 
-    /**
-     * Send a reply using the notification's direct reply RemoteInput action.
-     * Called from onNotificationPosted (native) and from Flutter via MethodChannel.
-     */
     private fun notifyReplyScheduled(sender: String, replyText: String, delayMs: Long) {
         val data = JSONObject().apply {
             put("sender", sender)
@@ -671,8 +627,6 @@ class AppNotificationListenerService : NotificationListenerService() {
                             }
                         )
                         try {
-                            // Resolve again immediately before the irreversible PendingIntent.
-                            // If a repost changed type/identity, do not use the stale action.
                             val latest = confirmedDirectTarget(key, expectedPackageName, expectedShortcutId, expectedTag, expectedId)
                             if (latest == null || latest.key != sbn.key || latest.postTime != sbn.postTime) {
                                 notifyUnsafeChatSkipped()
@@ -719,10 +673,6 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
     }
 
-    /**
-     * Send a batched AI reply: collect all buffered messages from the batcher callback,
-     * call the appropriate AI service with all messages, then send a single reply.
-     */
     private fun sendBatchedAiReply(batch: MessageBatcher.BatchReadyCallback, modelType: String) {
         val attemptId = batch.analysisId
         if (!analysisAttempts.isActive(attemptId)) {
@@ -752,7 +702,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             baseSystemPrompt
         }
 
-        // Build a clean transcript: filter artifacts, dedup, merge, cap tokens
         val history = ConversationTranscriptBuilder.build(
             history = rawHistory,
             batchMessages = emptyList(), // batch messages are passed separately to the AI service
@@ -761,8 +710,6 @@ class AppNotificationListenerService : NotificationListenerService() {
 
         Log.d(TAG, "Pipeline event")
 
-        // Full incoming text for logs/rating: join batch so multi-message
-        // bursts don't lose context (e.g. "hi | kay challay?").
         val batchOriginalMessage = if (messages.size > 1) {
             messages.joinToString(separator = " | ")
         } else {
@@ -770,8 +717,6 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
 
         fun deliverReply(replyText: String, effectiveModelType: String, tokensUsed: Int) {
-            // Serialize the last deadline check with timeout and scheduling. JNI
-            // may finish after cancellation; only this claim can permit a send.
             mainHandler.post {
                 if (!ruleEngine.isMasterEnabled()) { failAnalysis(attemptId); return@post }
                 if (confirmedDirectTarget(batch.latestNotificationKey, batch.packageName,
@@ -787,11 +732,9 @@ class AppNotificationListenerService : NotificationListenerService() {
                 }
                 ConversationHistory.addMessage(sender, "assistant", replyText)
 
-                // Emit "reply_ready" before scheduling the send
                 notifyPipelineStatus("reply_ready", sender)
 
-                // Confirm before reply: show approval notification instead of sending directly.
-                // Countdown starts only when the send is actually scheduled (approval or timeout).
+
                 if (ruleEngine.isConfirmBeforeReplyEnabled()) {
                     showConfirmationNotification(
                         notificationKey = batch.latestNotificationKey,
@@ -806,7 +749,6 @@ class AppNotificationListenerService : NotificationListenerService() {
                         sbnId = batch.latestId,
                     )
                 } else {
-                    // Apply the user's configured reply delay on top of the batch window
                     scheduleDelayedReply(
                         key = batch.latestNotificationKey,
                         sender = sender,
@@ -878,7 +820,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             val error = usage?.error
             val isLimitReached = usage?.isLimitReached ?: false
 
-            // Save usage and rate-limit data regardless of tokensUsed (essential for 429/quota tracking)
             ruleEngine.saveAiUsage(
                 provider = modelType,
                 tokensUsed = tokensUsed,
@@ -934,7 +875,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             }
         }
 
-        // Check if model has reached daily limit before making network request
         if (modelType != "phi_local" && ruleEngine.isAiLimitReached(modelType)) {
             Log.w(TAG, "Daily limit reached for $modelType. Falling back to local model immediately.")
             tryLocalFallback("Daily limit reached for $modelType")
@@ -1064,14 +1004,6 @@ class AppNotificationListenerService : NotificationListenerService() {
         return actions.any { it.remoteInputs?.isNotEmpty() == true }
     }
 
-    /**
-     * Resolve stable conversation identity for [notificationKey], preferring the
-     * caller-supplied values captured when the message arrived. Falls back to the
-     * currently-posted notification with the same key (best-effort — may be null
-     * if it was already dismissed).
-     *
-     * Returns Quadruple(packageName, shortcutId, tag, id).
-     */
     private fun resolveConversationIdentity(
         notificationKey: String,
         packageName: String?,
@@ -1108,26 +1040,10 @@ class AppNotificationListenerService : NotificationListenerService() {
             val candidateShortcut = getShortcutId(a)
             if (candidateShortcut != null && candidateShortcut == shortcutId) return true
         }
-        // tag+id is only stable when tag is non-null. A null tag with a reused
-        // integer id (common: id=0/1 for every chat) must NOT count as a match,
-        // otherwise two different chats in the same app could look identical.
         if (tag != null && id != null && tag == a.tag && id == a.id) return true
         return false
     }
 
-    /**
-     * Same-conversation fallback: only returns a notification that can be confirmed
-     * as the original conversation.
-     *
-     * - Exact [originalKey] match (implies same package) is preferred.
-     * - Otherwise only notifications from [expectedPackageName] whose stable identity
-     *   (shortcut ID, or tag+id) matches the original are considered.
-     * - Display-name / sender matching is deliberately NOT used: two contacts can
-     *   share a name, and a substring match can route a reply to the wrong chat.
-     *
-     * Returns null when the original conversation can't be confirmed — callers must
-     * then skip sending and log it instead of guessing.
-     */
     private fun findSameConversationNotification(
         originalKey: String,
         expectedPackageName: String?,
@@ -1137,8 +1053,6 @@ class AppNotificationListenerService : NotificationListenerService() {
     ): StatusBarNotification? {
         val active = activeNotifications ?: return null
 
-        // Exact key still present (and still replyable)? Use it. If we know the
-        // expected package, enforce it as well.
         active.firstOrNull { it.key == originalKey && hasReplyAction(it) }?.let { exact ->
             if (expectedPackageName == null || exact.packageName == expectedPackageName) {
                 return exact
@@ -1146,8 +1060,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             Log.w(TAG, "Exact key match ${exact.key} is from ${exact.packageName}, expected $expectedPackageName — ignoring")
         }
 
-        // Without the original package we cannot safely narrow the search.
-        // Do NOT fall back to sender-name search — treat as unconfirmed.
         if (expectedPackageName == null) {
             Log.w(TAG, "Cannot confirm original conversation for key=$originalKey without package — skipping fallback")
             return null
@@ -1164,8 +1076,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             return null
         }
 
-        // Stable identity match only (shortcut ID preferred, then non-null tag+id).
-        // An id alone (null tag) is not stable — ids are commonly reused across chats.
         val hasStableIdentity = !expectedShortcutId.isNullOrEmpty() || expectedTag != null
         if (!hasStableIdentity) {
             Log.w(TAG, "No stable conversation identity for key=$originalKey — refusing to guess by sender name")
@@ -1181,11 +1091,8 @@ class AppNotificationListenerService : NotificationListenerService() {
         return match
     }
 
-    // Simple 4-tuple — avoids pulling in extra dependencies for an internal helper.
     private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
-    /** Extract only platform metadata. Neither title substrings, a single visible
-     * sender nor notification.group/groupKey can establish a one-to-one chat. */
     private fun classifyChat(notification: Notification, pkg: String): ChatTypePolicy.Kind {
         return try {
             val extras = notification.extras
@@ -1243,8 +1150,6 @@ class AppNotificationListenerService : NotificationListenerService() {
         publishAnalysis()
     }
 
-    /** Revalidate original admission and a currently posted direct chat before
-     * inference, scheduling, confirmation and sending. No name-based fallback. */
     private fun confirmedDirectTarget(key: String, pkg: String?, shortcut: String?, tag: String?, id: Int?): StatusBarNotification? {
         return try {
             val origin = directChatGate.original(key) ?: return null
@@ -1253,28 +1158,24 @@ class AppNotificationListenerService : NotificationListenerService() {
             if (tag != null && origin.tag != tag) return null
             if (id != null && origin.id != id) return null
             val active = activeNotifications ?: return null
-            // Conflicting live notifications for the original identity must
-            // suppress sending, not be silently filtered out as candidates.
             val sameIdentity = active.filter { origin.sameConversation(chatTarget(it)) }
             if (sameIdentity.any { classifyChat(it.notification, it.packageName) != ChatTypePolicy.Kind.DIRECT }) return null
             val candidates = sameIdentity.filter { candidate ->
                 directChatGate.permits(key, chatTarget(candidate), classifyChat(candidate.notification, candidate.packageName)) &&
                     hasReplyAction(candidate)
             }
-            // Ambiguous fallback is not safe even if the notifications share an ID.
             candidates.firstOrNull { it.key == key } ?: candidates.singleOrNull()
         } catch (_: Exception) { null }
     }
 
     private var replyErrorNotifiedAt = 0L
 
-    /** Post a real system notification when the reply pipeline fails, so failures are visible. */
     private fun notifyReplyError(reason: String) {
         Log.e(TAG, "Reply pipeline error: $reason")
+        if (methodChannel == null) recordPipelineEvent(reason)
         mainHandler.post {
             methodChannel?.invokeMethod("onReplyFailed", reason)
         }
-        // Throttle to one notification per 30s to avoid spam
         val nowMs = System.currentTimeMillis()
         if (nowMs - replyErrorNotifiedAt < 30_000L) return
         replyErrorNotifiedAt = nowMs
@@ -1306,11 +1207,6 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
     }
 
-    /**
-     * Normalize sender name for consistent batching.
-     * WhatsApp sometimes prefixes titles with "WhatsApp: " — strip it so
-     * "WhatsApp: Rahul" and "Rahul" are treated as the same sender.
-     */
     private fun normalizeSenderName(title: String, packageName: String): String {
         return when (packageName) {
             "com.whatsapp" -> {
@@ -1320,27 +1216,12 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
     }
 
-    /**
-     * Quick check for obvious notification artifacts before they enter the batcher.
-     * More thorough filtering is done by [ConversationTranscriptBuilder] at transcript-build time.
-     */
     private fun isNotificationArtifact(message: String): Boolean {
         return ConversationTranscriptBuilder.isArtifact(message)
     }
 
-    /** Normalized per-sender map key so "Rahul" and "rahul" share one entry. */
     private fun senderKey(sender: String): String = sender.trim().lowercase()
 
-    /**
-     * Best-effort detection of outgoing (self-sent) messages via the
-     * notification's MessagingStyle data (Notification.EXTRA_MESSAGES).
-     *
-     * After we send a RemoteInput reply, WhatsApp updates the notification and
-     * the last style message may carry a null/empty sender or a self display
-     * name ("You"). In that case the notification is an echo of our own send
-     * and must not trigger another reply. Returns false when the data is
-     * absent or inconclusive (callers still run the text-based self-guard).
-     */
     private fun isOutgoingMessagingStyleMessage(notification: Notification, sender: String): Boolean {
         return try {
             val extras = notification.extras ?: return false
@@ -1350,7 +1231,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             val text = last.getCharSequence("text")?.toString()?.trim() ?: ""
             if (text.isEmpty()) return false
 
-            // Sender can be a CharSequence, a Person (API 28+), or null for outgoing.
             val senderObj: Any? = try { last.get("sender") } catch (_: Exception) { null }
             if (senderObj == null) return true
             val senderName: String = when (senderObj) {
@@ -1373,8 +1253,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             false
         }
     }
-
-    // ── Confirm Before Reply ────────────────────────────────────────────────
 
     private fun createConfirmNotificationChannel() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -1465,8 +1343,6 @@ class AppNotificationListenerService : NotificationListenerService() {
         val confirmId = UUID.randomUUID().toString()
         val notifId = CONFIRM_NOTIFICATION_ID_BASE + confirmId.hashCode()
 
-        // Store the pending reply, including stable conversation identity so the
-        // later send (approve or 15s timeout) can verify the same conversation.
         pendingReplies[confirmId] = PendingReply(
             confirmId = confirmId,
             notificationKey = notificationKey,
@@ -1481,7 +1357,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             aiModelType = aiModelType,
         )
 
-        // Build approve intent
         val approveIntent = Intent(ACTION_APPROVE).setPackage(this.packageName).apply {
             putExtra(EXTRA_CONFIRM_ID, confirmId)
             putExtra(EXTRA_NOTIFICATION_KEY, notificationKey)
@@ -1493,7 +1368,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        // Build deny intent
         val denyIntent = Intent(ACTION_DENY).setPackage(this.packageName).apply {
             putExtra(EXTRA_CONFIRM_ID, confirmId)
             putExtra(EXTRA_SENDER, sender)
@@ -1503,7 +1377,6 @@ class AppNotificationListenerService : NotificationListenerService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        // Truncate original message aggressively so reply text is fully visible
         val displayReply = replyText
         val displayOriginal = if (originalMessage.length > 40) originalMessage.take(40) + "..." else originalMessage
         val aiTag = if (isAiReply) " [AI]" else ""
@@ -1545,14 +1418,12 @@ class AppNotificationListenerService : NotificationListenerService() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.notify(notifId, notification)
 
-        // Verify notification was actually posted (check on Android 13+)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             if (!nm.areNotificationsEnabled()) {
                 Log.w(TAG, "POST_NOTIFICATIONS permission not granted — notification may not be visible")
             }
         }
 
-        // No approval means no send. Expired drafts are cancelled.
         mainHandler.postDelayed({
             if(pendingReplies.remove(confirmId)!=null) {nm.cancel(notifId);mainHandler.post{methodChannel?.invokeMethod("onReplyDenied", sender)}}
         }, 5*60_000L)

@@ -170,17 +170,24 @@ class LogRepository {
   /// Create a log entry for a failed reply attempt.
   /// Privacy: only the failure reason is stored - no sender, message
   /// content, reply text, keys, or tokens.
-  ReplyLog createFailureLog(String reason) {
+  ReplyLog createFailureLog(String reason, {String? existingId, DateTime? at}) {
     return ReplyLog(
-      id: _uuid.v4(),
+      id: existingId ?? _uuid.v4(),
       sender: '',
       originalMessage: '',
       autoReplySent: '',
       appName: '',
-      dateTime: DateTime.now(),
+      dateTime: at ?? DateTime.now(),
       ruleId: '',
       failureReason: reason,
     );
+  }
+
+  /// Whether a log with this exact id already exists (dedupe for
+  /// pipeline events recovered from the native side).
+  bool hasLog(String id) {
+    if (id.isEmpty) return false;
+    return HiveConfig.getLogsBox().get(id) != null;
   }
 
   /// Add a failure log. Unlike [addLog], this does NOT increment the

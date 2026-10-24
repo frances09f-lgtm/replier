@@ -85,6 +85,47 @@ class AutoReplyService {
 
   void initialize() {
     _notificationChannel.setMethodCallHandler(_handleMethodCall);
+    _drainNativePipelineEvents();
+  }
+
+  /// Pull pipeline events recorded natively while the app was closed and turn
+  /// them into Logs entries, so off-screen failures and skips stay visible.
+  Future<void> _drainNativePipelineEvents() async {
+    try {
+      final dynamic events =
+          await _notificationChannel.invokeMethod('getPipelineEvents');
+      if (events is! List || events.isEmpty) return;
+      int added = 0;
+      for (final raw in events) {
+        try {
+          final event = json.decode(raw.toString()) as Map<String, dynamic>;
+          final reason =
+              _sanitizeFailureReason(event['reason']?.toString() ?? '');
+          if (reason.isEmpty) continue;
+          final id = event['id']?.toString() ?? '';
+          if (_logRepository.hasLog(id)) continue;
+          final ts = int.tryParse('${event['ts'] ?? ''}');
+          final log = _logRepository.createFailureLog(
+            reason,
+            existingId: id.isEmpty ? null : id,
+            at: ts == null
+                ? null
+                : DateTime.fromMillisecondsSinceEpoch(ts),
+          );
+          await _logRepository.addFailureLog(log);
+          added++;
+        } catch (e) {
+          print('AutoReplyService pipeline event error: $e');
+        }
+      }
+      if (added > 0 && _providerContainer != null) {
+        final notifier = _providerContainer!.read(logsProvider.notifier);
+        await notifier.refreshLogs();
+      }
+    } catch (e) {
+      // Native side unavailable (unit tests, or listener offline): nothing to drain.
+      print('AutoReplyService drain error: $e');
+    }
   }
 
   static Future<dynamic> _handleMethodCall(MethodCall call) async {

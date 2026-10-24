@@ -385,6 +385,9 @@ class MainActivity : FlutterActivity() {
                     val usage = ruleEngine.getAiUsage()
                     result.success(usage)
                 }
+                "getPipelineEvents" -> result.success(
+                    AppNotificationListenerService.drainPipelineEvents()
+                )
                 else -> result.notImplemented()
             }
         }
