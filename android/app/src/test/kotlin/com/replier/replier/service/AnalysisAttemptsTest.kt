@@ -109,4 +109,68 @@ class AnalysisAttemptsTest {
         assertNotEquals(AnalysisAttempts.conversationKey("pkg", null, "x", 1, "k"),
             AnalysisAttempts.conversationKey("pkg", null, "x", 2, "k"))
     }
+
+    @Test fun expireAttemptFiresExactlyOnceForAnalysingAttempt() {
+        var clock = 0L
+        val ledger = AnalysisAttempts { clock }
+        val a = ledger.begin("c", "Demo")
+        clock = 100000
+        assertTrue(ledger.expireAttempt(a.id))
+        assertFalse(ledger.expireAttempt(a.id))
+        assertEquals("expired", ledger.snapshot().single().state)
+    }
+
+    @Test fun expireAttemptDoesNotFireBeforeDeadline() {
+        val ledger = AnalysisAttempts { 99999L }
+        val a = ledger.begin("c", "Demo")
+        assertFalse(ledger.expireAttempt(a.id))
+        assertTrue(ledger.isActive(a.id))
+        assertEquals("analysing", ledger.snapshot().single().state)
+    }
+
+    @Test fun expireAttemptNeverFiresAfterSuccess() {
+        var clock = 0L
+        val ledger = AnalysisAttempts { clock }
+        val a = ledger.begin("c", "Demo")
+        clock = 5000
+        assertTrue(ledger.complete(a.id, "ready"))
+        clock = 200000
+        assertFalse(ledger.expireAttempt(a.id))
+        assertEquals("ready", ledger.snapshot().single().state)
+    }
+
+    @Test fun expireAttemptNeverFiresAfterFailureOrCancel() {
+        var clock = 0L
+        val ledger = AnalysisAttempts { clock }
+        val a = ledger.begin("a", "Demo")
+        val b = ledger.begin("b", "Demo")
+        assertTrue(ledger.complete(a.id, "failed"))
+        ledger.cancelAll()
+        clock = 200000
+        assertFalse(ledger.expireAttempt(a.id))
+        assertFalse(ledger.expireAttempt(b.id))
+        assertEquals(listOf("failed", "canceled"), ledger.snapshot().map { it.state })
+    }
+
+    @Test fun expireAttemptRaceWithLateCompleteExpiresOnlyOnce() {
+        var clock = 0L
+        val ledger = AnalysisAttempts { clock }
+        val a = ledger.begin("c", "Demo")
+        clock = 100000
+        // Late engine callback loses the race; expiry then fires exactly once.
+        assertFalse(ledger.complete(a.id, "ready"))
+        assertTrue(ledger.expireAttempt(a.id))
+        assertFalse(ledger.expireAttempt(a.id))
+        assertEquals("expired", ledger.snapshot().single().state)
+    }
+
+    @Test fun expireAttemptOnSupersededAttemptDoesNotFire() {
+        var clock = 0L
+        val ledger = AnalysisAttempts { clock }
+        val a = ledger.begin("one", "Demo")
+        val b = ledger.begin("one", "Demo")
+        clock = 200000
+        assertFalse(ledger.expireAttempt(a.id))
+        assertTrue(ledger.expireAttempt(b.id))
+    }
 }
