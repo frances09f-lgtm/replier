@@ -1,13 +1,9 @@
-## Replier v1.1.7
+## Replier v1.1.8
 
-### Diagnostic: failed replies now show their reason in the Logs tab
-- Every failed reply attempt is now saved to Logs with a short, sanitized reason (credentials, URLs, emails and phone numbers redacted; no sender or message content is stored).
-- Failed entries show as "Reply failed", do not inflate the daily-replies count, and stay visible under any app filter.
-- An AI attempt that times out now reports "AI attempt timed out before any reply was ready" instead of failing silently, and expiry can no longer fire twice.
-- Logs written by older app versions still read correctly after the upgrade.
+### Diagnostic: nothing in Logs is now explained
+- Pipeline events are now recorded natively, so a reply that fails or is skipped while the app is closed still appears in Logs when you open the app.
+- Every silent skip now records its reason: master switch off, app disabled, outside schedule window, self-sent message, repeated message, non-1:1 chat, sender not allowed, no rule matched and AI replies off, notification artifact.
+- Failed replies are still logged live when the app is running, unchanged from v1.1.7.
 
 ### What this build is for
-Install it, send one test message, then open Logs: the reason line under "Reply failed" is the actual cause of "stuck, not replying". (pull request #6)
-
-### Not verified
-Nothing was tested on a phone. CI ran analyze, tests, the release APK build and the Android unit tests.
+Install it, send one test message, then open the app: Logs now shows exactly which step stopped the reply. (pull request #7)
