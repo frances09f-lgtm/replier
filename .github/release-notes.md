@@ -1,12 +1,13 @@
-## Replier v1.1.6
+## Replier v1.1.7
 
-### Fix: dashboard card stuck on "Sending the reply"
-- An overdue reply countdown card now clears itself after 30 seconds instead of staying at 0 seconds.
-- The dashboard listeners now start when the app launches, so early events are not missed.
-- Reply cards no longer wait on the log save before they update.
-- A 60 second check restarts the message listener if Android drops it, and the background service restart is guarded against errors.
+### Diagnostic: failed replies now show their reason in the Logs tab
+- Every failed reply attempt is now saved to Logs with a short, sanitized reason (credentials, URLs, emails and phone numbers redacted; no sender or message content is stored).
+- Failed entries show as "Reply failed", do not inflate the daily-replies count, and stay visible under any app filter.
+- An AI attempt that times out now reports "AI attempt timed out before any reply was ready" instead of failing silently, and expiry can no longer fire twice.
+- Logs written by older app versions still read correctly after the upgrade.
 
-The Settings screen is not changed. Reply logic, storage and permissions are the same as v1.1.5 apart from the guards above. (pull request #5)
+### What this build is for
+Install it, send one test message, then open Logs: the reason line under "Reply failed" is the actual cause of "stuck, not replying". (pull request #6)
 
 ### Not verified
-Nothing was tested on a phone. The causes above were found by reading the code, so it is not known which one affects the phone. CI ran analyze, tests, the release APK build and the Android unit tests.
+Nothing was tested on a phone. CI ran analyze, tests, the release APK build and the Android unit tests.

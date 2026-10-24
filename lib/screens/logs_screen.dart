@@ -30,7 +30,23 @@ class LogsScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   Expanded(
-                      child: Text('Logs', style: DraftText.display(30, c.tx))),
+                      child: Row(children: [
+                        Text('Logs', style: DraftText.display(30, c.tx)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: c.err.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text('DIAGNOSTIC',
+                              style: TextStyle(
+                                  color: c.err,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ])),
                   IconButton(
                                 icon: const Icon(Icons.archive_outlined),
                                 tooltip: "Previous Replier history",
@@ -249,6 +265,7 @@ class _LogCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isGood = log.rating == 1;
     final isBad = log.rating == -1;
+    final isFailure = log.failureReason.isNotEmpty;
     final c = DraftColors.of(context);
     final tt = Theme.of(context).textTheme;
     final isWa = log.appName.toLowerCase().contains('whats');
@@ -286,7 +303,7 @@ class _LogCard extends ConsumerWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        log.sender,
+                        isFailure ? 'Reply failed' : log.sender,
                         style: tt.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: c.tx,
@@ -300,29 +317,41 @@ class _LogCard extends ConsumerWidget {
                     ),
                   ],
                 ),
-                Text(log.appName,
-                    style: tt.bodySmall?.copyWith(color: c.mut)),
+                if (log.appName.isNotEmpty)
+                  Text(log.appName,
+                      style: tt.bodySmall?.copyWith(color: c.mut)),
                 const SizedBox(height: 6),
-                Text(
-                  'In: ${log.originalMessage.isNotEmpty ? log.originalMessage : '(no incoming text captured)'}',
-                  style: tt.bodyMedium?.copyWith(color: c.tx),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Out: ${log.autoReplySent}',
-                  style: tt.bodyMedium?.copyWith(
-                    color: c.tx,
-                    fontWeight: FontWeight.w500,
+                if (isFailure)
+                  Text(
+                    'Failed: ${log.failureReason}',
+                    style: tt.bodyMedium?.copyWith(color: c.err),
+                  )
+                else ...[
+                  Text(
+                    'In: ${log.originalMessage.isNotEmpty ? log.originalMessage : '(no incoming text captured)'}',
+                    style: tt.bodyMedium?.copyWith(color: c.tx),
                   ),
-                ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Out: ${log.autoReplySent}',
+                    style: tt.bodyMedium?.copyWith(
+                      color: c.tx,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 6,
                   children: [
-                    const DraftChip.wait('Submitted'),
-                    DraftChip(
-                        'Source: ${log.aiModel.isNotEmpty ? 'AI' : 'Rule'}'),
+                    if (isFailure)
+                      const DraftChip.bad('Failed')
+                    else ...[
+                      const DraftChip.wait('Submitted'),
+                      DraftChip(
+                          'Source: ${log.aiModel.isNotEmpty ? 'AI' : 'Rule'}'),
+                    ],
                     if (isGood) const DraftChip.ok('Good'),
                     if (isBad) const DraftChip.bad('Bad'),
                   ],
@@ -342,11 +371,12 @@ class _LogCard extends ConsumerWidget {
                     ),
                   ),
                 ],
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _DraftIconAction(
-                      icon: Icons.thumb_up_outlined,
+                if (!isFailure) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _DraftIconAction(
+                        icon: Icons.thumb_up_outlined,
                       activeIcon: Icons.thumb_up,
                       active: isGood,
                       activeColor: c.pri,
@@ -365,13 +395,14 @@ class _LogCard extends ConsumerWidget {
                       onPressed: () => _showFeedbackDialog(context, ref, log),
                     ),
                     const Spacer(),
-                    DraftButton.secondary(
-                      log.trained ? 'Edit training' : 'Teach better',
-                      icon: Icons.school_outlined,
-                      onPressed: () => _showFeedbackDialog(context, ref, log),
-                    ),
-                  ],
-                ),
+                      DraftButton.secondary(
+                        log.trained ? 'Edit training' : 'Teach better',
+                        icon: Icons.school_outlined,
+                        onPressed: () => _showFeedbackDialog(context, ref, log),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

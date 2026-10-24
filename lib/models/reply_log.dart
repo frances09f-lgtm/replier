@@ -46,6 +46,12 @@ class ReplyLog extends HiveObject {
   @HiveField(11)
   bool trained;
 
+  /// Why the reply failed, for entries that record a failed attempt instead
+  /// of a sent reply. Empty for normal (sent) logs. Stores only the native
+  /// failure reason - never message content, keys, or tokens.
+  @HiveField(12)
+  String failureReason;
+
   ReplyLog({
     required this.id,
     required this.sender,
@@ -59,6 +65,7 @@ class ReplyLog extends HiveObject {
     this.feedbackNote = '',
     this.correctedReply = '',
     this.trained = false,
+    this.failureReason = '',
   });
 
   /// Convert to JSON
@@ -76,6 +83,7 @@ class ReplyLog extends HiveObject {
       'feedbackNote': feedbackNote,
       'correctedReply': correctedReply,
       'trained': trained,
+      'failureReason': failureReason,
     };
   }
 
@@ -94,6 +102,7 @@ class ReplyLog extends HiveObject {
       feedbackNote: json['feedbackNote'] ?? '',
       correctedReply: json['correctedReply'] ?? '',
       trained: json['trained'] ?? false,
+      failureReason: json['failureReason'] ?? '',
     );
   }
 
@@ -111,6 +120,7 @@ class ReplyLog extends HiveObject {
     String? feedbackNote,
     String? correctedReply,
     bool? trained,
+    String? failureReason,
   }) {
     return ReplyLog(
       id: id ?? this.id,
@@ -125,6 +135,7 @@ class ReplyLog extends HiveObject {
       feedbackNote: feedbackNote ?? this.feedbackNote,
       correctedReply: correctedReply ?? this.correctedReply,
       trained: trained ?? this.trained,
+      failureReason: failureReason ?? this.failureReason,
     );
   }
 }

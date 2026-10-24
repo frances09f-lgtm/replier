@@ -510,6 +510,12 @@ class AppNotificationListenerService : NotificationListenerService() {
                     notifyPipelineStatus("got_message", sender)
                     val attempt = analysisAttempts.begin(conversation, sender)
                     val timeout = Runnable {
+                        // Exactly-once expiry: a completed/failed/canceled attempt
+                        // never produces a false timeout error.
+                        if (analysisAttempts.expireAttempt(attempt.id)) {
+                            Log.e(TAG, "AI attempt expired after ${AnalysisAttempts.LIMIT_MS}ms with no engine result")
+                            notifyReplyError("AI attempt timed out before any reply was ready")
+                        }
                         analysisAttempts.expireDue()
                         analysisTimers.remove(attempt.id)
                         publishAnalysis()

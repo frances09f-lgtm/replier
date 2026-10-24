@@ -94,7 +94,11 @@ final filteredLogsProvider = Provider<List<ReplyLog>>((ref) {
 
   var result = logs;
   if (appFilter != null && appFilter.isNotEmpty) {
-    result = result.where((l) => l.appName == appFilter).toList();
+    // Failure entries are pipeline-level (no app identity); never hide them
+    // behind an app filter or the diagnostic signal disappears.
+    result = result
+        .where((l) => l.appName == appFilter || l.failureReason.isNotEmpty)
+        .toList();
   }
   switch (feedbackFilter) {
     case 'bad':

@@ -124,6 +124,17 @@ class AutoReplyService {
       case 'onReplyFailed':
         print('AutoReplyService: reply failed — ${call.arguments}');
         _notifyReplyCompleted();
+        if (_instance != null) {
+          final reason =
+              _sanitizeFailureReason(call.arguments?.toString() ?? '');
+          if (reason.isNotEmpty) {
+            try {
+              await _instance!._logFailure(reason);
+            } catch (e) {
+              print('AutoReplyService failure logging error: $e');
+            }
+          }
+        }
         break;
       case 'onReplySuccess':
         // Clear the status cards first. The log write below touches Hive and
@@ -211,6 +222,43 @@ class AutoReplyService {
       }
     } catch (e) {
       print('AutoReplyService logging error: $e');
+    }
+  }
+
+  /// Keep only a short, technical failure reason. A native exception message
+  /// could in theory carry message content or a key, so redact token-like
+  /// runs and cap the length before anything is persisted.
+  static String _sanitizeFailureReason(String raw) {
+    var s = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+    // URLs: keep scheme + host (which provider failed stays visible), drop
+    // userinfo, path and query (can carry keys or echoed content).
+    s = s.replaceAllMapped(
+        RegExp(r'(https?://)([^/?@\s]+@)?([^/?\s]+)[^\s]*'),
+        (m) => '${m[1]}${m[3]}/...');
+    // Auth headers / bearer tokens.
+    s = s.replaceAllMapped(
+        RegExp(r'(bearer|authorization:?)\s+\S+', caseSensitive: false),
+        (m) => '${m[1]} [redacted]');
+    // Email addresses.
+    s = s.replaceAll(RegExp(r'[^\s@]+@[^\s@]+\.[^\s@]+'), '[email]');
+    // Long token-like runs (API keys, secrets). Must run before the phone
+    // rule so digit-heavy keys are redacted, not mangled.
+    s = s.replaceAllMapped(
+        RegExp(r'[A-Za-z0-9_\-]{32,}'), (_) => '[redacted]');
+    // Phone numbers (8+ digits allowing +, spaces and dashes).
+    s = s.replaceAll(RegExp(r'\+?\d[\d \-]{6,}\d'), '[number]');
+    const maxLen = 200;
+    if (s.length > maxLen) s = s.substring(0, maxLen);
+    return s;
+  }
+
+  /// Persist a failed attempt so the Logs tab shows WHY nothing was sent.
+  Future<void> _logFailure(String reason) async {
+    final log = _logRepository.createFailureLog(reason);
+    await _logRepository.addFailureLog(log);
+    if (_providerContainer != null) {
+      final notifier = _providerContainer!.read(logsProvider.notifier);
+      await notifier.refreshLogs();
     }
   }
 
