@@ -60,27 +60,45 @@ class AppNotificationListenerService : NotificationListenerService() {
 
         fun getChatbotContext(): String = chatbotContext
 
-        private val pipelineEvents = ArrayDeque<String>()
+        private const val PIPELINE_EVENTS_PREFS = "replier_pipeline_events"
+        private const val PIPELINE_EVENTS_KEY = "events"
         private const val PIPELINE_EVENTS_MAX = 60
 
         fun recordPipelineEvent(reason: String) {
-            val event = JSONObject().apply {
-                put("id", "${System.currentTimeMillis()}-${(0..999999).random()}")
-                put("ts", System.currentTimeMillis())
-                put("reason", reason)
-            }.toString()
-            synchronized(pipelineEvents) {
-                pipelineEvents.addLast(event)
-                while (pipelineEvents.size > PIPELINE_EVENTS_MAX) pipelineEvents.removeFirst()
+            try {
+                val ctx = instance?.applicationContext ?: return
+                val event = JSONObject().apply {
+                    put("id", "${System.currentTimeMillis()}-${(0..999999).random()}")
+                    put("ts", System.currentTimeMillis())
+                    put("reason", reason)
+                }.toString()
+                val prefs = ctx.getSharedPreferences(PIPELINE_EVENTS_PREFS, Context.MODE_PRIVATE)
+                val arr = try {
+                    JSONArray(prefs.getString(PIPELINE_EVENTS_KEY, "[]") ?: "[]")
+                } catch (_: Exception) { JSONArray() }
+                arr.put(event)
+                while (arr.length() > PIPELINE_EVENTS_MAX) arr.remove(0)
+                prefs.edit().putString(PIPELINE_EVENTS_KEY, arr.toString()).apply()
+            } catch (_: Exception) {
+                Log.w(TAG, "recordPipelineEvent failed")
             }
         }
 
         fun drainPipelineEvents(): List<String> {
-            synchronized(pipelineEvents) {
-                val out = pipelineEvents.toList()
-                pipelineEvents.clear()
-                return out
+            val out = mutableListOf<String>()
+            try {
+                val ctx = instance?.applicationContext ?: return out
+                val prefs = ctx.getSharedPreferences(PIPELINE_EVENTS_PREFS, Context.MODE_PRIVATE)
+                val raw = prefs.getString(PIPELINE_EVENTS_KEY, null)
+                if (raw != null) {
+                    val arr = JSONArray(raw)
+                    for (i in 0 until arr.length()) out.add(arr.getString(i))
+                }
+                prefs.edit().remove(PIPELINE_EVENTS_KEY).apply()
+            } catch (_: Exception) {
+                Log.w(TAG, "drainPipelineEvents failed")
             }
+            return out
         }
     }
 
@@ -313,6 +331,7 @@ class AppNotificationListenerService : NotificationListenerService() {
     private fun processNotification(sbn: StatusBarNotification) {
         val packageName = sbn.packageName
         if (!supportedPackages.contains(packageName)) return
+        recordPipelineEvent("Got a notification from ${getAppName(packageName)}")
 
         notificationArrivalTimes[sbn.key] = SystemClock.elapsedRealtime()
         if (notificationArrivalTimes.size > 100) {
