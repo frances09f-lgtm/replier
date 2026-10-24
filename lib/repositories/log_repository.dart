@@ -158,10 +158,45 @@ class LogRepository {
     return counts;
   }
 
-  /// Get last reply log
+  /// Get last reply log (sent replies only - failures are not replies)
   ReplyLog? getLastReplyLog() {
     final logs = getAllLogs();
-    return logs.isNotEmpty ? logs.first : null;
+    for (final log in logs) {
+      if (log.failureReason.isEmpty) return log;
+    }
+    return null;
+  }
+
+  /// Create a log entry for a failed reply attempt.
+  /// Privacy: only the failure reason is stored - no sender, message
+  /// content, reply text, keys, or tokens.
+  ReplyLog createFailureLog(String reason) {
+    return ReplyLog(
+      id: _uuid.v4(),
+      sender: '',
+      originalMessage: '',
+      autoReplySent: '',
+      appName: '',
+      dateTime: DateTime.now(),
+      ruleId: '',
+      failureReason: reason,
+    );
+  }
+
+  /// Add a failure log. Unlike [addLog], this does NOT increment the
+  /// daily-replies-sent counter, because nothing was sent.
+  Future<void> addFailureLog(ReplyLog log) async {
+    final box = HiveConfig.getLogsBox();
+    await box.put(log.id, log);
+
+    // Enforce maximum log limit
+    final logs = getAllLogs();
+    if (logs.length > AppConstants.maxLogs) {
+      final logsToRemove = logs.skip(AppConstants.maxLogs);
+      for (final log in logsToRemove) {
+        await box.delete(log.id);
+      }
+    }
   }
 
   /// Create a new log
