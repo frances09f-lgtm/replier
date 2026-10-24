@@ -1,3 +1,7 @@
+## v1.1.9+35
+- Pipeline events now persist to disk, so skip/failure reasons survive the app being force-closed before the Logs tab is opened.
+- The listener records an entry event for every supported-app notification, so an empty Logs tab now means the listener saw nothing at all.
+
 ## Replier v1.1.8
 
 ### Diagnostic: nothing in Logs is now explained
