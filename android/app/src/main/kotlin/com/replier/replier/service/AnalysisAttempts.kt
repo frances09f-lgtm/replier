@@ -51,6 +51,12 @@ class AnalysisAttempts(private val now: () -> Long) {
             .forEach { finish(it, "expired") }
         prune()
     }
+    @Synchronized fun expireAttempt(id: String): Boolean {
+        val a = attempts[id] ?: return false
+        if (a.state != "analysing" || now() < a.deadline) return false
+        finish(a, "expired")
+        return true
+    }
     @Synchronized fun cancelAll() {
         attempts.values.filter { it.state == "analysing" }.forEach { finish(it, "canceled") }
     }
