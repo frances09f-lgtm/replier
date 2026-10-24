@@ -25,7 +25,9 @@ import 'package:replier/core/constants.dart';
 import 'package:replier/core/hive_config.dart';
 import 'package:replier/models/reply_log.dart';
 import 'package:replier/repositories/log_repository.dart';
+import 'package:replier/providers/log_provider.dart';
 import 'package:replier/repositories/rule_repository.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:replier/services/auto_reply_service.dart';
 
 /// Writes the OLD 12-field record format (before failureReason existed), so
@@ -230,5 +232,40 @@ void main() {
         reason: 'old records have no field 12; must read as a sent reply');
     // And it must still count as a sent reply for last-reply stats.
     expect(repo.getLastReplyLog()?.id, 'legacy-record-1');
+  });
+
+  test('AI-attempt timeout reason persists verbatim and survives filters',
+      () async {
+    AutoReplyService(
+      ruleRepository: RuleRepository(),
+      logRepository: LogRepository(),
+    ).initialize();
+
+    const reason = 'AI attempt timed out before any reply was ready';
+    await nativeCall('onReplyFailed', reason);
+
+    final repo = LogRepository();
+    final failure = repo
+        .getAllLogs()
+        .firstWhere((l) => l.failureReason.isNotEmpty);
+    expect(failure.failureReason, reason,
+        reason: 'evidence-only timeout text must persist unchanged');
+
+    // UI-level filters: an app filter must not hide pipeline failures.
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await container.read(logsProvider.notifier).refreshLogs();
+    container.read(appFilterProvider.notifier).state = 'WhatsApp';
+    final visible = container.read(filteredLogsProvider);
+    expect(visible.any((l) => l.id == failure.id), isTrue,
+        reason: 'app filter must never hide failure entries');
+    // Source filters: failures have no rule and no model - visible under AI.
+    container.read(appFilterProvider.notifier).state = null;
+    container.read(logSourceFilterProvider.notifier).state = 'ai';
+    expect(
+        container
+            .read(filteredLogsProvider)
+            .any((l) => l.id == failure.id),
+        isTrue);
   });
 }
