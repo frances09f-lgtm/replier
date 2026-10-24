@@ -30,7 +30,23 @@ class LogsScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   Expanded(
-                      child: Text('Logs', style: DraftText.display(30, c.tx))),
+                      child: Row(children: [
+                        Text('Logs', style: DraftText.display(30, c.tx)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: c.err.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text('DIAGNOSTIC',
+                              style: TextStyle(
+                                  color: c.err,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ])),
                   IconButton(
                                 icon: const Icon(Icons.archive_outlined),
                                 tooltip: "Previous Replier history",
