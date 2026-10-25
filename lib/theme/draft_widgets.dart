@@ -635,7 +635,48 @@ class DraftEmptyState extends StatelessWidget {
   }
 }
 
-/// Draft "Analysis" card: h3 title, countdown ring, status text.
+/// Fixed outer height of the dashboard "Analysis" slot (dp). Every state —
+/// idle, each pipeline stage, the reply countdown and the 100-second analysis
+/// countdown — renders at exactly this height so the dashboard never jumps.
+const double kAnalysisCardHeight = 104;
+
+/// Ring diameter inside the compact Analysis card (dp).
+const double kAnalysisRingSize = 60;
+
+/// Largest text scale used inside the fixed-height Analysis card, so system
+/// font scaling can't push the text past the fixed height.
+const double kAnalysisMaxTextScale = 1.15;
+
+/// Fixed-size shell shared by every Analysis state: same surface colour and
+/// radius as [DraftCard], fixed height, clamped text scaling, clipped content.
+class DraftAnalysisShell extends StatelessWidget {
+  final Widget child;
+
+  const DraftAnalysisShell({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = DraftColors.of(context);
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: kAnalysisMaxTextScale,
+      child: Container(
+        width: double.infinity,
+        height: kAnalysisCardHeight,
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: c.s1,
+          borderRadius: BorderRadius.circular(28),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// Draft "Analysis" card, compact and fixed-height: small ring on the left,
+/// "Analysis" title plus a 2-line (ellipsized) status on the right.
 /// Resting state shows a muted empty ring and honest idle copy.
 class DraftAnalysisCard extends StatelessWidget {
   final double progress; // 0..1
@@ -654,43 +695,55 @@ class DraftAnalysisCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = DraftColors.of(context);
-    return DraftCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return DraftAnalysisShell(
+      child: Row(
         children: [
-          Text('Analysis',
-              style: DraftText.display(19, c.tx)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              SizedBox(
-                width: 88,
-                height: 88,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CircularProgressIndicator(
-                      value: idle ? 0 : progress.clamp(0.0, 1.0),
-                      strokeWidth: 9,
-                      strokeCap: StrokeCap.round,
-                      backgroundColor: c.bg,
-                      valueColor: AlwaysStoppedAnimation(
-                          idle ? c.mut.withValues(alpha: .4) : c.pri),
-                    ),
-                    Center(
-                      child: Text(ringLabel,
-                          style: DraftText.display(
-                              22, idle ? c.mut : c.tx)),
-                    ),
-                  ],
+          SizedBox(
+            width: kAnalysisRingSize,
+            height: kAnalysisRingSize,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CircularProgressIndicator(
+                  value: idle ? 0 : progress.clamp(0.0, 1.0),
+                  strokeWidth: 6,
+                  strokeCap: StrokeCap.round,
+                  backgroundColor: c.bg,
+                  valueColor: AlwaysStoppedAnimation(
+                      idle ? c.mut.withValues(alpha: .4) : c.pri),
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(text,
-                    style: DraftText.body(13.5, idle ? c.mut : c.tx)),
-              ),
-            ],
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(ringLabel,
+                          maxLines: 1,
+                          style: DraftText.display(16, idle ? c.mut : c.tx)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Analysis',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: DraftText.display(16, c.tx)),
+                const SizedBox(height: 4),
+                Text(text,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: DraftText.body(13, idle ? c.mut : c.tx)
+                        .copyWith(height: 1.3)),
+              ],
+            ),
           ),
         ],
       ),

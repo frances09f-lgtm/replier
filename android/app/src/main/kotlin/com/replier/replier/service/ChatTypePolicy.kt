@@ -40,6 +40,10 @@ class DirectChatGate {
     }
     private val admitted = linkedMapOf<String, Target>()
     @Synchronized fun record(target: Target, kind: ChatTypePolicy.Kind): List<Target> {
+        // A group-summary notification (FLAG_GROUP_SUMMARY) is the bundle header WhatsApp
+        // posts beside each chat notification and shares its shortcut id. It carries no
+        // message and says nothing about the chat's type, so it neither admits nor revokes.
+        if (kind == ChatTypePolicy.Kind.SUMMARY) return emptyList()
         val revoked = admitted.values.filter {
             it.key == target.key || (kind != ChatTypePolicy.Kind.DIRECT && it.sameConversation(target))
         }

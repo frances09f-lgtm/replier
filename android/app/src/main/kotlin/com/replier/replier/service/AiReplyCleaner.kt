@@ -16,6 +16,15 @@ object AiReplyCleaner {
     private const val LLAMA_HDR_END = "<|end_header_id|>"
     private const val LLAMA_EOT = "<|eot_id|>"
 
+    // Tokens that end the model's turn (or start a new one). Text after the first of these is a
+    // second, run-on generation (likely cause of the on-device "Ok, cool.Ok, cool.": a reply plus
+    // its repeat joined once the token between them was deleted), so we cut there instead.
+    private val TURN_END_TOKENS = listOf(
+        LLAMA_EOT, LLAMA_HDR_START, "<|im_end|>", "<|im_start|>", "<end_of_turn>", "<start_of_turn>",
+        "<eos>", "<|end|>", "<|return|>", "<|endoftext|>", "</s>"
+    )
+    private val LLAMA_HEADER_REGEX = Regex("""<\|start_header_id\|>[^<]{0,40}<\|end_header_id\|>""")
+
     private val THINK_BLOCK_REGEX = Regex("""(?is)<think\b[^>]*>.*?<\/think>""")
     private val THOUGHT_BLOCK_REGEX = Regex("""(?is)<thought\b[^>]*>.*?<\/thought>""")
     private val REASONING_BLOCK_REGEX = Regex("""(?is)<reasoning\b[^>]*>.*?<\/reasoning>""")
@@ -59,7 +68,8 @@ object AiReplyCleaner {
         var text = rawText.trim()
         if (text.isBlank()) return ""
 
-        // 1. Strip special tokens
+        // 1. Cut at the end of the first turn, then strip remaining special tokens
+        text = truncateAtTurnEnd(text)
         text = stripSpecialTokens(text)
 
         // 2. Strip thinking / reasoning tags (closed and unclosed)
@@ -97,7 +107,47 @@ object AiReplyCleaner {
             return ""
         }
 
-        return validReply.take(300)
+        return collapseExactRepeat(validReply).take(300)
+    }
+
+    /**
+     * Keeps only the first turn of a generation: drops a leading role header
+     * (<|start_header_id|>assistant<|end_header_id|>) and cuts at the first turn-end token that
+     * follows real text.
+     */
+    fun truncateAtTurnEnd(input: String): String {
+        val text = LLAMA_HEADER_REGEX.replace(input, "\n")
+        var from = 0
+        while (from < text.length) {
+            var cut = -1
+            for (token in TURN_END_TOKENS) {
+                val i = text.indexOf(token, from)
+                if (i >= 0 && (cut < 0 || i < cut)) cut = i
+            }
+            if (cut < 0) return text
+            val before = text.substring(0, cut)
+            if (stripSpecialTokens(before).isNotBlank()) return before
+            from = cut + 1
+        }
+        return text
+    }
+
+    /**
+     * Safety net for a reply that is one sentence repeated back to back with no or only whitespace
+     * between ("Ok, cool.Ok, cool." -> "Ok, cool."). Only collapses when the repeated part ends
+     * like a sentence, so casual doubles like "haha haha" or "bye bye" are left alone.
+     */
+    fun collapseExactRepeat(input: String): String {
+        val t = input.trim()
+        if (t.length < 4) return t
+        for (k in 2..(t.length - 2)) {
+            val a = t.substring(0, k).trimEnd()
+            if (a.length < 2) continue
+            val last = a.last()
+            if (last != '.' && last != '!' && last != '?' && last != '…') continue
+            if (t.substring(k).trim() == a) return a
+        }
+        return t
     }
 
     private fun stripSpecialTokens(input: String): String {

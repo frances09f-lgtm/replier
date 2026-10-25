@@ -78,4 +78,28 @@ class AiReplyCleanerTest {
         val cleaned = AiReplyCleaner.clean("Kiti un ahe baher", incomingMessage = "Kiti un ahe baher")
         assertEquals("", cleaned)
     }
+
+    @Test
+    fun runOnGenerationAfterEot_isCutNotConcatenated() {
+        val raw = "Ok, cool.<|eot_id|>Ok, cool.<|eot_id|>"
+        assertEquals("Ok, cool.", AiReplyCleaner.clean(raw, senderName = "Tab", incomingMessage = "On it."))
+    }
+
+    @Test
+    fun leadingAssistantHeader_thenRunOnTurn_keepsFirstReplyOnly() {
+        val raw = "<|start_header_id|>assistant<|end_header_id|>\n\nSounds good!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\nSounds good!"
+        assertEquals("Sounds good!", AiReplyCleaner.clean(raw, senderName = "Tab", incomingMessage = "Done"))
+    }
+
+    @Test
+    fun exactSentenceRepeat_isCollapsed() {
+        assertEquals("Ok, cool.", AiReplyCleaner.clean("Ok, cool.Ok, cool.", senderName = "Tab", incomingMessage = "hi"))
+        assertEquals("Sure thing!", AiReplyCleaner.clean("Sure thing! Sure thing!", senderName = "Tab", incomingMessage = "hi"))
+    }
+
+    @Test
+    fun casualDoubles_areKept() {
+        assertEquals("haha haha", AiReplyCleaner.clean("haha haha", senderName = "Tab", incomingMessage = "lol"))
+        assertEquals("bye bye", AiReplyCleaner.clean("bye bye", senderName = "Tab", incomingMessage = "cya"))
+    }
 }

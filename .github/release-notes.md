@@ -1,3 +1,13 @@
+## Replier v1.2.0
+
+### Fixes
+- AI replies no longer get stuck at "Got new message". WhatsApp's summary notification for the same chat was cancelling the queued reply; it is now ignored (shown in Logs as "Ignored WhatsApp summary notification").
+- Groq replies work again with gpt-oss models. The app sent a setting Groq rejects for them, so every reply silently fell back to the on-phone model.
+- No more doubled replies like "Ok, cool.Ok, cool." from the on-phone model.
+
+### Dashboard
+- The Analysis card is smaller and stays the same height in every state. Several analyses at once show as "+N more".
+
 ## v1.1.9+35
 - Pipeline events now persist to disk, so skip/failure reasons survive the app being force-closed before the Logs tab is opened.
 - The listener records an entry event for every supported-app notification, so an empty Logs tab now means the listener saw nothing at all.

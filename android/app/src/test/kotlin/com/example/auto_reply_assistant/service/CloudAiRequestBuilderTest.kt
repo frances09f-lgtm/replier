@@ -65,8 +65,25 @@ class CloudAiRequestBuilderTest {
             provider = "groq_api",
         )
 
-        assertEquals("hidden", payload.getString("reasoning_format"))
+        // Groq rejects reasoning_format for gpt-oss; include_reasoning=false is used instead.
+        assertFalse(payload.has("reasoning_format"))
+        assertFalse(payload.getBoolean("include_reasoning"))
         assertEquals("low", payload.getString("reasoning_effort"))
+        assertEquals(300, payload.getInt("max_tokens"))
+    }
+
+    @Test
+    fun openAiPayload_groqNonOssModel_keepsReasoningFormatHidden() {
+        val payload = CloudAiRequestBuilder.buildOpenAiCompatiblePayload(
+            model = "qwen/qwen3-32b",
+            systemPrompt = "System",
+            incomingMessage = "Hi",
+            senderName = "Alex",
+            provider = "groq_api",
+        )
+
+        assertEquals("hidden", payload.getString("reasoning_format"))
+        assertFalse(payload.has("include_reasoning"))
         assertEquals(80, payload.getInt("max_tokens"))
     }
 }

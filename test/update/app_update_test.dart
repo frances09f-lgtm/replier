@@ -10,6 +10,8 @@ void main() {
     expect(compareVersions('1.0.20', '1.0.19'), greaterThan(0));
     expect(compareVersions('v1.0.20', '1.0.20'), 0);
     expect(compareVersions('22', '1.0.22'), greaterThan(0)); // old tag shape
+    expect(compareVersions('1.2.0', '1.1.9-debug4'), greaterThan(0));
+    expect(compareVersions('1.1.9', '1.1.9-debug4'), 0); // no downgrade offer
   });
   test('fetchLatest parses latest release and compares', () async {
     const body = '{"tag_name":"v1.0.20","body":"notes here",'

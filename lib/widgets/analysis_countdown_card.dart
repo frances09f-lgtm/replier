@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import '../theme/draft_theme.dart';
+import '../theme/draft_widgets.dart';
 import '../providers/analysis_status_provider.dart';
 
 /// A deadline visualization, not an estimate of model completion/progress.
+/// Rendered inside the same fixed-height [DraftAnalysisShell] as the
+/// dashboard's Analysis card, so switching between states never resizes it.
 class AnalysisCountdownCard extends StatelessWidget {
   final AnalysisStatus status;
-  const AnalysisCountdownCard({super.key, required this.status});
+
+  /// Other attempts running at the same time (shown as "+N more" instead of
+  /// stacking extra cards, which would change the slot's height).
+  final int extraCount;
+  const AnalysisCountdownCard(
+      {super.key, required this.status, this.extraCount = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -33,30 +41,24 @@ class AnalysisCountdownCard extends StatelessWidget {
       label: active
           ? '$title, ${status.seconds} seconds remaining, ${status.sender}'
           : title,
-      child: AnimatedContainer(
+      child: KeyedSubtree(
         key: ValueKey('analysis-${status.id}'),
-        duration: duration,
-        margin: const EdgeInsets.only(top: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-            color: c.s1,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: c.out.withValues(alpha: 0.5))),
+        child: DraftAnalysisShell(
         child: Row(children: [
           SizedBox(
-              width: 58,
-              height: 58,
+              width: kAnalysisRingSize,
+              height: kAnalysisRingSize,
               child: Stack(alignment: Alignment.center, children: [
                 if (active)
                   TweenAnimationBuilder<double>(
                     tween: Tween(end: status.remainingMs / 100000),
                     duration: duration,
                     builder: (context, remaining, child) => SizedBox(
-                        width: 58,
-                        height: 58,
+                        width: kAnalysisRingSize,
+                        height: kAnalysisRingSize,
                         child: CircularProgressIndicator(
                             value: remaining,
-                            strokeWidth: 4,
+                            strokeWidth: 6,
                             strokeCap: StrokeCap.round,
                             backgroundColor: c.s2,
                             valueColor: AlwaysStoppedAnimation(accent))),
@@ -90,9 +92,11 @@ class AnalysisCountdownCard extends StatelessWidget {
           Expanded(
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                 Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         color: accent,
                         fontWeight: FontWeight.w800,
@@ -100,18 +104,24 @@ class AnalysisCountdownCard extends StatelessWidget {
                 if (status.sender.isNotEmpty)
                   Padding(
                       padding: const EdgeInsets.only(top: 3),
-                      child: Text(status.sender,
+                      child: Text(
+                          extraCount > 0
+                              ? '${status.sender} · +$extraCount more'
+                              : status.sender,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               color: c.tx,
                               fontWeight: FontWeight.w600))),
-                const SizedBox(height: 5),
+                const SizedBox(height: 3),
                 Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         color: c.mut, fontSize: 12)),
               ])),
         ]),
+        ),
       ),
     );
   }

@@ -38,14 +38,16 @@ class UpdateInfo {
 }
 
 /// Numeric semver-ish compare: >0 when a > b. Ignores a leading v and any
-/// +build suffix; missing segments count as 0.
+/// +build suffix and any -suffix inside a segment; missing segments count as 0.
 int compareVersions(String a, String b) {
   List<int> parts(String v) => v
       .replaceFirst(RegExp(r'^[vV]'), '')
       .split('+')
       .first
       .split('.')
-      .map((s) => int.tryParse(s) ?? 0)
+      // Leading digits only, so a pre-release name like "1.1.9-debug4"
+      // reads as 1.1.9 instead of 1.1.0.
+      .map((s) => int.tryParse(RegExp(r'^\d+').stringMatch(s) ?? '') ?? 0)
       .toList();
   final pa = parts(a), pb = parts(b);
   for (var i = 0; i < pa.length || i < pb.length; i++) {
