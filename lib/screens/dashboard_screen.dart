@@ -341,11 +341,15 @@ class DashboardScreen extends ConsumerWidget {
       ReplyCountdownData countdown) {
     final analyses = ref.watch(analysisStatusProvider);
     final pipeline = ref.watch(pipelineStatusProvider);
+    // One fixed-height slot for every state (see kAnalysisCardHeight): with
+    // several attempts in flight, show the newest-listed one plus "+N more"
+    // instead of stacking cards.
     if (analyses.isNotEmpty) {
-      return Column(
-          children: analyses
-              .map((a) => AnalysisCountdownCard(key: ValueKey(a.id), status: a))
-              .toList());
+      final a = analyses.first;
+      return AnalysisCountdownCard(
+          key: ValueKey(a.id),
+          status: a,
+          extraCount: analyses.length - 1);
     }
     if (pipeline.stage != null) {
       const labels = {
