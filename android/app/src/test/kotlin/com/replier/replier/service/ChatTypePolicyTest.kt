@@ -49,6 +49,19 @@ class ChatTypePolicyTest {
         gate.record(target("summary", "summary-id", "summary"), ChatTypePolicy.Kind.SUMMARY)
         assertTrue(gate.permits(a.key, a, d))
     }
+    @Test fun summarySharingShortcutDoesNotRevokeDirect() {
+        // WhatsApp's FLAG_GROUP_SUMMARY notification shares the chat's shortcut id.
+        val gate = DirectChatGate(); val a = target(); gate.record(a, d)
+        val summary = target("summary-key", a.shortcut, "summary-tag", id = 0)
+        assertTrue(gate.record(summary, ChatTypePolicy.Kind.SUMMARY).isEmpty())
+        assertTrue(gate.permits(a.key, a, d))
+        assertNull(gate.original(summary.key))
+    }
+    @Test fun summaryOnExactKeyDoesNotAdmit() {
+        val gate = DirectChatGate(); val a = target()
+        gate.record(a, ChatTypePolicy.Kind.SUMMARY)
+        assertFalse(gate.permits(a.key, a, d)); assertNull(gate.original(a.key))
+    }
     @Test fun packageCannotChangeOnExactKey() {
         val gate = DirectChatGate(); val a = target(); gate.record(a, d)
         assertFalse(gate.permits(a.key, a.copy(packageName = "com.instagram.android"), d))

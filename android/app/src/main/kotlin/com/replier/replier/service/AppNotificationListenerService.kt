@@ -374,6 +374,15 @@ class AppNotificationListenerService : NotificationListenerService() {
             dbg("1 posted pkg=$packageName key=${dh(sbn.key)} id=${sbn.id} tag=${dh(sbn.tag)} post=${dt(sbn.postTime)} summary=$summary cat=${n0?.category} thread=${Thread.currentThread().name} ui=${methodChannel != null}")
         } catch (_: Throwable) {}
 
+        if (isGroupSummary(sbn)) {
+            // WhatsApp posts a group-summary notification for the same conversation (same
+            // shortcut id) next to every chat notification. Treating it as a non-direct chat
+            // revoked the admitted chat and silently cancelled the queued AI reply.
+            dbg("1s ignored summary key=${dh(sbn.key)} shortcut=${dh(getShortcutId(sbn))}")
+            recordPipelineEvent("Ignored ${getAppName(packageName)} summary notification")
+            return
+        }
+
         notificationArrivalTimes[sbn.key] = SystemClock.elapsedRealtime()
         if (notificationArrivalTimes.size > 100) {
             val cutoff = SystemClock.elapsedRealtime() - 10 * 60_000L
@@ -1227,6 +1236,11 @@ class AppNotificationListenerService : NotificationListenerService() {
         } catch (_: Exception) { ChatTypePolicy.Kind.UNKNOWN }
     }
 
+    private fun isGroupSummary(sbn: StatusBarNotification): Boolean = try {
+        val n = sbn.notification
+        n != null && (n.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+    } catch (_: Exception) { false }
+
     private fun chatTarget(sbn: StatusBarNotification) = DirectChatGate.Target(
         sbn.packageName, sbn.key, getShortcutId(sbn), sbn.tag, sbn.id, sbn.userId)
 
@@ -1265,7 +1279,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             if (tag != null && origin.tag != tag) return "tag differs"
             if (id != null && origin.id != id) return "id differs"
             val active = activeNotifications ?: return "activeNotifications=null"
-            val sameIdentity = active.filter { origin.sameConversation(chatTarget(it)) }
+            val sameIdentity = active.filter { !isGroupSummary(it) && origin.sameConversation(chatTarget(it)) }
             if (sameIdentity.isEmpty()) return "notification no longer showing (active=${active.size})"
             val kinds = sameIdentity.map { classifyChat(it.notification, it.packageName) }
             if (kinds.any { it != ChatTypePolicy.Kind.DIRECT }) return "a same-chat notification is not DIRECT: $kinds"
@@ -1283,7 +1297,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             if (tag != null && origin.tag != tag) return null
             if (id != null && origin.id != id) return null
             val active = activeNotifications ?: return null
-            val sameIdentity = active.filter { origin.sameConversation(chatTarget(it)) }
+            val sameIdentity = active.filter { !isGroupSummary(it) && origin.sameConversation(chatTarget(it)) }
             if (sameIdentity.any { classifyChat(it.notification, it.packageName) != ChatTypePolicy.Kind.DIRECT }) return null
             val candidates = sameIdentity.filter { candidate ->
                 directChatGate.permits(key, chatTarget(candidate), classifyChat(candidate.notification, candidate.packageName)) &&
