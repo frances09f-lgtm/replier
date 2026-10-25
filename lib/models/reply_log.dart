@@ -52,6 +52,10 @@ class ReplyLog extends HiveObject {
   @HiveField(12)
   String failureReason;
 
+  /// An AI reply that was actually sent (not a rule reply, and not a
+  /// failure / pipeline-event entry, which also has an empty ruleId).
+  bool get isAiReplySent => ruleId.isEmpty && failureReason.isEmpty;
+
   ReplyLog({
     required this.id,
     required this.sender,

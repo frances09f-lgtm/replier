@@ -684,12 +684,17 @@ class DraftAnalysisCard extends StatelessWidget {
   final String text;
   final bool idle;
 
+  /// Glide the arc to each new [progress] (a live countdown ticking once a
+  /// second) instead of jumping.
+  final bool animateProgress;
+
   const DraftAnalysisCard({
     super.key,
     required this.progress,
     required this.ringLabel,
     required this.text,
     this.idle = false,
+    this.animateProgress = false,
   });
 
   @override
@@ -704,13 +709,21 @@ class DraftAnalysisCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CircularProgressIndicator(
-                  value: idle ? 0 : progress.clamp(0.0, 1.0),
-                  strokeWidth: 6,
-                  strokeCap: StrokeCap.round,
-                  backgroundColor: c.bg,
-                  valueColor: AlwaysStoppedAnimation(
-                      idle ? c.mut.withValues(alpha: .4) : c.pri),
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(
+                      end: idle ? 0 : progress.clamp(0.0, 1.0)),
+                  duration: animateProgress
+                      ? const Duration(milliseconds: 900)
+                      : Duration.zero,
+                  curve: Curves.linear,
+                  builder: (context, value, _) => CircularProgressIndicator(
+                    value: value,
+                    strokeWidth: 6,
+                    strokeCap: StrokeCap.round,
+                    backgroundColor: c.bg,
+                    valueColor: AlwaysStoppedAnimation(
+                        idle ? c.mut.withValues(alpha: .4) : c.pri),
+                  ),
                 ),
                 Center(
                   child: Padding(

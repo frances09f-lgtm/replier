@@ -8,6 +8,7 @@ import '../providers/rule_provider.dart';
 import '../providers/reply_countdown_provider.dart';
 import '../providers/ai_usage_provider.dart';
 import '../utils/ai_engine_display.dart';
+import '../widgets/pipeline_analysis_card.dart';
 import '../widgets/analysis_countdown_card.dart';
 import '../providers/analysis_status_provider.dart';
 import '../providers/pipeline_status_provider.dart';
@@ -352,23 +353,7 @@ class DashboardScreen extends ConsumerWidget {
           extraCount: analyses.length - 1);
     }
     if (pipeline.stage != null) {
-      const labels = {
-        PipelineStage.gotMessage: 'Got a new message.',
-        PipelineStage.analysing: 'Analyzing the message.',
-        PipelineStage.replyReady: 'Reply ready.',
-        PipelineStage.sending: 'Sending the reply.',
-      };
-      const progress = {
-        PipelineStage.gotMessage: 0.25,
-        PipelineStage.analysing: 0.5,
-        PipelineStage.replyReady: 0.75,
-        PipelineStage.sending: 0.9,
-      };
-      return DraftAnalysisCard(
-        progress: progress[pipeline.stage] ?? 0.5,
-        ringLabel: '',
-        text: labels[pipeline.stage] ?? 'Processing.',
-      );
+      return PipelineAnalysisCard(status: pipeline);
     }
     if (countdown.isActive) {
       final secs = countdown.remainingMs ~/ 1000;
@@ -400,7 +385,10 @@ class DashboardScreen extends ConsumerWidget {
             l.dateTime.day == now.day)
         .toList();
     final ruleReplies = todayLogs.where((l) => l.ruleId.isNotEmpty).length;
-    final aiReplies = todayLogs.where((l) => l.ruleId.isEmpty).length;
+    // Only AI replies actually sent: failure / pipeline-event entries (skip
+    // reasons, "Ignored WhatsApp summary notification", errors) share the logs
+    // box with empty ruleId and must not count.
+    final aiReplies = todayLogs.where((l) => l.isAiReplySent).length;
     final c = DraftColors.of(context);
 
     final settings = ref.watch(appSettingsProvider);

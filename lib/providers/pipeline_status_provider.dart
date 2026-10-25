@@ -13,10 +13,15 @@ class PipelineStatusData {
   final String sender;
   final int countdownSeconds;
 
+  /// Whole reply delay in seconds when the sending countdown started (0 when
+  /// the reply was already due). Lets the card draw the ring's progress.
+  final int countdownTotalSeconds;
+
   const PipelineStatusData({
     this.stage,
     this.sender = '',
     this.countdownSeconds = 0,
+    this.countdownTotalSeconds = 0,
   });
 
   bool get isIdle => stage == null;
@@ -25,11 +30,14 @@ class PipelineStatusData {
     PipelineStage? stage,
     String? sender,
     int? countdownSeconds,
+    int? countdownTotalSeconds,
   }) {
     return PipelineStatusData(
       stage: stage ?? this.stage,
       sender: sender ?? this.sender,
       countdownSeconds: countdownSeconds ?? this.countdownSeconds,
+      countdownTotalSeconds:
+          countdownTotalSeconds ?? this.countdownTotalSeconds,
     );
   }
 }
@@ -210,6 +218,7 @@ class PipelineStatusNotifier extends StateNotifier<PipelineStatusData> {
       stage: PipelineStage.sending,
       sender: sender,
       countdownSeconds: countdownSecs,
+      countdownTotalSeconds: countdownSecs,
     );
 
     if (countdownSecs > 0) {

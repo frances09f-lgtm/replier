@@ -1,4 +1,10 @@
-## Replier v1.2.0
+## Replier v1.2.1
+
+### Fixes
+- The send timer is back on the Analysis card: while a reply waits for its delay, the ring shows the seconds left (e.g. "12s"), fills as it counts down, and the status reads "Sending in 12s". With no delay (or when it reaches 0) it shows "Sending now…".
+- "AI replies" on the Dashboard now counts only AI replies actually sent today. It was counting every entry in Logs without a rule, including skip/failure/diagnostic entries, so it climbed to the Logs limit of 1000.
+
+## v1.2.0
 
 ### Fixes
 - AI replies no longer get stuck at "Got new message". WhatsApp's summary notification for the same chat was cancelling the queued reply; it is now ignored (shown in Logs as "Ignored WhatsApp summary notification").
