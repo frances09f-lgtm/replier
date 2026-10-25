@@ -725,6 +725,7 @@ class AppNotificationListenerService : NotificationListenerService() {
                                 notifyUnsafeChatSkipped()
                                 return
                             }
+                            dbg("17s final reply len=${replyText.length} hash=${dh(replyText)} action=$i inputs=${action.remoteInputs.size}")
                             action.actionIntent.send(applicationContext, 0, replyIntent)
                             dbg("18 SENT via reply action")
                             ruleEngine.recordReplySent(sender, replyText)

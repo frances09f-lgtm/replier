@@ -80,9 +80,19 @@ object CloudAiRequestBuilder {
                 model.contains("deepseek", ignoreCase = true)
 
             if (isGroqOrReasoning && provider != "cloudflare_api") {
-                put("reasoning_format", "hidden")
-                if (model.contains("oss", ignoreCase = true)) {
+                if (model.contains("gpt-oss", ignoreCase = true)) {
+                    // Groq rejects reasoning_format for gpt-oss ("reasoning_format is not supported
+                    // with this model"), which sends every reply to the on-phone fallback model.
+                    // include_reasoning=false is the gpt-oss way to keep reasoning out of the reply.
+                    put("include_reasoning", false)
                     put("reasoning_effort", "low")
+                    // Reasoning tokens count against max_tokens; 80 can leave no room for the reply.
+                    put("max_tokens", maxOf(maxTokens, 300))
+                } else {
+                    put("reasoning_format", "hidden")
+                    if (model.contains("oss", ignoreCase = true)) {
+                        put("reasoning_effort", "low")
+                    }
                 }
             }
         }
