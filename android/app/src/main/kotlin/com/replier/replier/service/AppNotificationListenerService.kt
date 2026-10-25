@@ -62,8 +62,26 @@ class AppNotificationListenerService : NotificationListenerService() {
 
         private const val PIPELINE_EVENTS_PREFS = "replier_pipeline_events"
         private const val PIPELINE_EVENTS_KEY = "events"
-        private const val PIPELINE_EVENTS_MAX = 60
+        private const val PIPELINE_EVENTS_MAX = 400
 
+        // DEBUG build (1.1.9-debug1): step-by-step trace written to the in-app Logs tab.
+        private val dbgSeq = java.util.concurrent.atomic.AtomicInteger(0)
+
+        /** Short, privacy-safe id for keys (no message text, no phone numbers). */
+        fun dh(s: String?): String = if (s == null) "null" else Integer.toHexString(s.hashCode())
+
+        /** Wall-clock time as HH:mm:ss.SSS (survives the Logs tab's number redaction). */
+        fun dt(ms: Long): String = try {
+            java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US).format(java.util.Date(ms))
+        } catch (_: Exception) { "?" }
+
+        fun dbg(msg: String) {
+            val line = "DBG ${dbgSeq.incrementAndGet()} ${dt(System.currentTimeMillis())} $msg"
+            Log.i("ReplierDBG", line)
+            recordPipelineEvent(line)
+        }
+
+        @Synchronized
         fun recordPipelineEvent(reason: String) {
             try {
                 val ctx = instance?.applicationContext ?: return
@@ -84,6 +102,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             }
         }
 
+        @Synchronized
         fun drainPipelineEvents(): List<String> {
             val out = mutableListOf<String>()
             try {
@@ -204,6 +223,7 @@ class AppNotificationListenerService : NotificationListenerService() {
 
     private fun cancelScheduledReply(sender: String) {
         val existing = activeScheduledReplies.remove(senderKey(sender)) ?: return
+        dbg("cancelScheduledReply sender=${dh(sender)}")
         mainHandler.removeCallbacks(existing.runnable)
         existing.wakeLock?.let { wl ->
             if (wl.isHeld) {
@@ -227,9 +247,11 @@ class AppNotificationListenerService : NotificationListenerService() {
         onBeforeSend: (() -> Unit)? = null,
     ) {
         if (confirmedDirectTarget(key, packageName, shortcutId, sbnTag, sbnId) == null) {
+            dbg("15x schedule return: target not confirmed (${whyNotConfirmed(key, packageName, shortcutId, sbnTag, sbnId)})")
             notifyUnsafeChatSkipped()
             return
         }
+        dbg("15 scheduling reply delayMs=${ruleEngine.getReplyDelayMs()}")
         cancelScheduledReply(sender)
 
         val resolvedIdentity = resolveConversationIdentity(key, packageName, shortcutId, sbnTag, sbnId)
@@ -256,6 +278,7 @@ class AppNotificationListenerService : NotificationListenerService() {
                 activeScheduledReplies.remove(senderKey(sender))
                 Log.d(TAG, "Pipeline event")
                 val current=activeNotifications?.find{it.key==key}?.notification?.extras?.let{e->e.toString()+e.getCharSequence(Notification.EXTRA_TEXT).toString()+e.getCharSequence(Notification.EXTRA_BIG_TEXT).toString()}
+                dbg("16 delay elapsed, snapshotSame=${snapshot != null && snapshot == current}")
                 if(snapshot==null || snapshot!=current){mainHandler.post{methodChannel?.invokeMethod("onReplyFailed","Draft replaced by newer notification")};return@Runnable}
                 onBeforeSend?.invoke()
                 sendReply(key, sender, replyText, isAiReply, aiModelType, resolvedPackage, resolvedShortcut, resolvedTag, resolvedId)
@@ -294,9 +317,21 @@ class AppNotificationListenerService : NotificationListenerService() {
         createConfirmNotificationChannel()
         registerConfirmReceiver()
         Log.d(TAG, "AppNotificationListenerService created")
+        dbg("SERVICE created (listener started)")
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        dbg("SERVICE listener connected")
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        dbg("SERVICE listener DISCONNECTED")
     }
 
     override fun onDestroy() {
+        dbg("SERVICE destroyed")
         super.onDestroy()
         activeScheduledReplies.values.forEach { scheduled ->
             mainHandler.removeCallbacks(scheduled.runnable)
@@ -324,6 +359,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             processNotification(sbn)
         } catch (t: Throwable) {
             Log.e(TAG, "Notification processing crashed", t)
+            dbg("CRASH in processNotification: ${t.javaClass.simpleName}: ${t.message}")
             notifyReplyError("Reply pipeline crashed: ${t.message ?: t.javaClass.simpleName}")
         }
     }
@@ -332,6 +368,11 @@ class AppNotificationListenerService : NotificationListenerService() {
         val packageName = sbn.packageName
         if (!supportedPackages.contains(packageName)) return
         recordPipelineEvent("Got a notification from ${getAppName(packageName)}")
+        try {
+            val n0 = sbn.notification
+            val summary = n0 != null && (n0.flags and Notification.FLAG_GROUP_SUMMARY) != 0
+            dbg("1 posted pkg=$packageName key=${dh(sbn.key)} id=${sbn.id} tag=${dh(sbn.tag)} post=${dt(sbn.postTime)} summary=$summary cat=${n0?.category} thread=${Thread.currentThread().name} ui=${methodChannel != null}")
+        } catch (_: Throwable) {}
 
         notificationArrivalTimes[sbn.key] = SystemClock.elapsedRealtime()
         if (notificationArrivalTimes.size > 100) {
@@ -341,7 +382,7 @@ class AppNotificationListenerService : NotificationListenerService() {
 
         pendingReplies.entries.filter { it.value.notificationKey==sbn.key }.forEach { (id, _)-> pendingReplies.remove(id);getSystemService(NotificationManager::class.java).cancel(CONFIRM_NOTIFICATION_ID_BASE+id.hashCode()) }
         activeScheduledReplies.entries.filter{it.value.notificationKey==sbn.key}.forEach{(sender,_)->cancelScheduledReply(sender)}
-        val notification = sbn.notification ?: return
+        val notification = sbn.notification ?: run { dbg("1x return: notification is null"); return }
         val extras = notification.extras
 
         val appName = getAppName(packageName)
@@ -352,6 +393,7 @@ class AppNotificationListenerService : NotificationListenerService() {
         val chatKind = classifyChat(notification, packageName)
         val target = chatTarget(sbn)
         val revoked = directChatGate.record(target, chatKind)
+        dbg("2 chat kind=$chatKind stable=${target.stable} shortcut=${dh(target.shortcut)} msgLen=${message.length} revoked=${revoked.size}")
         revoked.forEach { cancelUnsafeConversation(it) }
         if (chatKind != ChatTypePolicy.Kind.DIRECT || !target.stable) {
             Log.i(TAG, "Skipping auto reply: chat type=$chatKind, stable=${target.stable}")
@@ -363,6 +405,7 @@ class AppNotificationListenerService : NotificationListenerService() {
         val sender = normalizeSenderName(title, packageName)
         Log.d(TAG, "Pipeline event")
 
+        dbg("3 sender=${dh(sender)} senderLen=${sender.length}")
         if (isOutgoingMessagingStyleMessage(notification, sender)) {
             Log.d(TAG, "Pipeline event")
             recordPipelineEvent("Skipped: outgoing message echo")
@@ -437,12 +480,15 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
         lastHandledIncoming[incomingKey] = normalizedIncoming to now
 
+        dbg("4 passed gates (master/schedule/app/self/dedupe)")
         val rule = ruleEngine.findMatchingRule(message, sender = sender)
+        dbg("5 rule=${if (rule == null) "none" else "matched"} ai=${ruleEngine.isAiReplyEnabled()} busy=${ruleEngine.isBusyModeActive()} confirm=${ruleEngine.isConfirmBeforeReplyEnabled()}")
 
         if (rule == null) {
             val busyText = ruleEngine.getBusyReplyText()
             if (ruleEngine.isBusyModeActive() && busyText.isNotBlank()) {
                 Log.d(TAG, "Busy mode active, using busy reply: '$busyText'")
+                dbg("5b busy mode reply path")
                 notifyPipelineStatus("got_message", sender)
                 ConversationHistory.addMessage(sender, "user", message)
                 if (ruleEngine.isConfirmBeforeReplyEnabled()) {
@@ -490,12 +536,16 @@ class AppNotificationListenerService : NotificationListenerService() {
                 val conversation = AnalysisAttempts.conversationKey(
                     packageName, getShortcutId(sbn), sbn.tag, sbn.id, sbn.key)
                 val bufferedId = messageBatcher.getPendingAttemptId(conversation)
+                dbg("6 AI path model=$modelType conv=${dh(conversation)} buffered=${bufferedId?.take(8)} bufferedActive=${bufferedId?.let { analysisAttempts.isActive(it) }}")
                 val attemptId = if (bufferedId != null && analysisAttempts.isActive(bufferedId)) {
+                    dbg("6a reusing attempt ${bufferedId.take(8)}")
                     bufferedId
                 } else {
                     notifyPipelineStatus("got_message", sender)
                     val attempt = analysisAttempts.begin(conversation, sender)
+                    dbg("6b got_message sent, new attempt ${attempt.id.take(8)} budgetMs=${analysisAttempts.remaining(attempt.id)}")
                     val timeout = Runnable {
+                        dbg("T attempt ${attempt.id.take(8)} 100s timeout fired")
                         if (analysisAttempts.expireAttempt(attempt.id)) {
                             Log.e(TAG, "AI attempt expired after ${AnalysisAttempts.LIMIT_MS}ms with no engine result")
                             notifyReplyError("AI attempt timed out before any reply was ready")
@@ -524,8 +574,16 @@ class AppNotificationListenerService : NotificationListenerService() {
                     sbnId = sbn.id,
                 ) { batch ->
                     Log.d(TAG, "Batch ready for ${batch.sender}: ${batch.messages.size} messages")
-                    sendBatchedAiReply(batch, modelType)
+                    dbg("8 batch callback invoked msgs=${batch.messages.size} attempt=${batch.analysisId.take(8)}")
+                    try {
+                        sendBatchedAiReply(batch, modelType)
+                    } catch (t: Throwable) {
+                        dbg("8x CRASH in sendBatchedAiReply: ${t.javaClass.simpleName}: ${t.message}")
+                        notifyReplyError("Reply pipeline crashed: ${t.message ?: t.javaClass.simpleName}")
+                        failAnalysis(batch.analysisId)
+                    }
                 }
+                dbg("7 addMessage done, waiting for 2s batch timer")
             } else {
                 Log.d(TAG, "No matching rule for message: '${message.take(50)}'")
                 recordPipelineEvent("Skipped: no rule matched and AI replies are off")
@@ -537,7 +595,8 @@ class AppNotificationListenerService : NotificationListenerService() {
 
         if (ruleEngine.shouldPreventDuplicates() &&
             ruleEngine.wasReplyRecentlySent(sender, replyText)
-        ) return
+        ) { dbg("5r return: rule reply was recently sent (duplicate prevention)"); return }
+        dbg("5r rule reply path")
 
         notifyPipelineStatus("got_message", sender)
         notifyPipelineStatus("analysing", sender)
@@ -574,6 +633,7 @@ class AppNotificationListenerService : NotificationListenerService() {
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         super.onNotificationRemoved(sbn)
         if (!supportedPackages.contains(sbn.packageName)) return
+        dbg("removed key=${dh(sbn.key)} id=${sbn.id}")
         mainHandler.post {
             methodChannel?.invokeMethod("onNotificationRemoved", sbn.key)
         }
@@ -592,6 +652,7 @@ class AppNotificationListenerService : NotificationListenerService() {
     }
 
     private fun notifyPipelineStatus(state: String, sender: String) {
+        dbg("status -> $state (ui=${methodChannel != null})")
         val data = JSONObject().apply {
             put("state", state)
             put("sender", sender)
@@ -612,10 +673,12 @@ class AppNotificationListenerService : NotificationListenerService() {
         expectedTag: String? = null,
         expectedId: Int? = null,
     ) {
-        if(!ruleEngine.isMasterEnabled())return
+        dbg("17 sendReply key=${dh(key)} len=${replyText.length}")
+        if(!ruleEngine.isMasterEnabled()) { dbg("17x return: master off"); return }
         try {
             val sbn = confirmedDirectTarget(key, expectedPackageName, expectedShortcutId, expectedTag, expectedId)
             if (sbn == null) {
+                dbg("17x return: target not confirmed (${whyNotConfirmed(key, expectedPackageName, expectedShortcutId, expectedTag, expectedId)})")
                 notifyUnsafeChatSkipped()
                 return
             }
@@ -627,6 +690,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             val liveText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString().orEmpty().ifEmpty { originalMessage }
             val queued = activeScheduledReplies.values.firstOrNull { it.notificationKey==key }
             if(queued!=null && queued.originalMessage.isNotEmpty() && queued.originalMessage!=liveText){
+                dbg("17x return: newer message replaced this draft")
                 mainHandler.post{methodChannel?.invokeMethod("onReplyFailed","Newer message replaced this draft")};return
             }
             val actions = sbn.notification.actions
@@ -648,10 +712,12 @@ class AppNotificationListenerService : NotificationListenerService() {
                         try {
                             val latest = confirmedDirectTarget(key, expectedPackageName, expectedShortcutId, expectedTag, expectedId)
                             if (latest == null || latest.key != sbn.key || latest.postTime != sbn.postTime) {
+                                dbg("17x return: notification changed right before send")
                                 notifyUnsafeChatSkipped()
                                 return
                             }
                             action.actionIntent.send(applicationContext, 0, replyIntent)
+                            dbg("18 SENT via reply action")
                             ruleEngine.recordReplySent(sender, replyText)
 
                             val arrivedAt = notificationArrivalTimes.remove(key)
@@ -674,18 +740,21 @@ class AppNotificationListenerService : NotificationListenerService() {
                             return
                         } catch (e: Exception) {
                             Log.e(TAG, "Failed to send reply via PendingIntent", e)
+                            dbg("18x send failed: ${e.javaClass.simpleName}: ${e.message?.take(80)}")
                         }
                     }
                 }
             }
 
             Log.w(TAG, "No direct reply action found for key: $key")
+            dbg("18x no direct reply action (actions=${sbn.notification.actions?.size ?: 0})")
             mainHandler.post {
                 methodChannel?.invokeMethod("onReplyFailed", "No direct reply action found")
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "Error sending reply", e)
+            dbg("18x sendReply threw ${e.javaClass.simpleName}: ${e.message?.take(80)}")
             mainHandler.post {
                 methodChannel?.invokeMethod("onReplyFailed", e.message)
             }
@@ -694,17 +763,21 @@ class AppNotificationListenerService : NotificationListenerService() {
 
     private fun sendBatchedAiReply(batch: MessageBatcher.BatchReadyCallback, modelType: String) {
         val attemptId = batch.analysisId
+        dbg("9 sendBatchedAiReply attempt=${attemptId.take(8)} active=${analysisAttempts.isActive(attemptId)} remainingMs=${analysisAttempts.remaining(attemptId)}")
         if (!analysisAttempts.isActive(attemptId)) {
+            dbg("9x return: attempt not active (expired/canceled/superseded)")
             notifyReplyError("Reply analysis expired before it could start")
             return
         }
         notifyPipelineStatus("analysing", batch.sender)
         if (batch.isGroupChat || confirmedDirectTarget(batch.latestNotificationKey, batch.packageName,
                 batch.latestShortcutId, batch.latestTag, batch.latestId) == null) {
+            dbg("10x return: confirmedDirectTarget=null (${whyNotConfirmed(batch.latestNotificationKey, batch.packageName, batch.latestShortcutId, batch.latestTag, batch.latestId)})")
             notifyReplyError("Reply skipped: conversation could not be confirmed as a one-to-one chat")
             failAnalysis(attemptId)
             return
         }
+        dbg("10 target confirmed")
         val sender = batch.sender
         val messages = batch.messages.map { it.message }
         val rawHistory = ConversationHistory.getHistory(sender)
@@ -736,14 +809,17 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
 
         fun deliverReply(replyText: String, effectiveModelType: String, tokensUsed: Int) {
+            dbg("13 deliverReply model=$effectiveModelType replyLen=${replyText.length}")
             mainHandler.post {
-                if (!ruleEngine.isMasterEnabled()) { failAnalysis(attemptId); return@post }
+                if (!ruleEngine.isMasterEnabled()) { dbg("13x return: master off"); failAnalysis(attemptId); return@post }
                 if (confirmedDirectTarget(batch.latestNotificationKey, batch.packageName,
                         batch.latestShortcutId, batch.latestTag, batch.latestId) == null) {
+                    dbg("13x return: target not confirmed at delivery (${whyNotConfirmed(batch.latestNotificationKey, batch.packageName, batch.latestShortcutId, batch.latestTag, batch.latestId)})")
                     failAnalysis(attemptId)
                     return@post
                 }
-                if (!analysisAttempts.complete(attemptId, "ready")) { publishAnalysis(); return@post }
+                if (!analysisAttempts.complete(attemptId, "ready")) { dbg("13x return: attempt could not complete (expired/canceled)"); publishAnalysis(); return@post }
+                dbg("13a reply ready, confirm=${ruleEngine.isConfirmBeforeReplyEnabled()}")
                 analysisTimers.remove(attemptId)?.let { mainHandler.removeCallbacks(it) }
                 publishAnalysis()
                 for (msg in messages) {
@@ -785,13 +861,16 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
 
         fun tryLocalFallback(cloudError: String?) {
-            if (!analysisAttempts.isActive(attemptId)) return
+            dbg("14 local fallback, cloudError=${cloudError?.take(80)}")
+            if (!analysisAttempts.isActive(attemptId)) { dbg("14x return: attempt not active"); return }
             if (confirmedDirectTarget(batch.latestNotificationKey, batch.packageName,
                     batch.latestShortcutId, batch.latestTag, batch.latestId) == null) {
+                dbg("14x return: target not confirmed")
                 failAnalysis(attemptId)
                 return
             }
             if (!ruleEngine.isFallbackToLocalEnabled()) {
+                dbg("14x return: local fallback disabled in settings")
                 Log.w(TAG, "Local fallback is disabled in settings. Skipping reply for $sender")
                 failAnalysis(attemptId)
                 return
@@ -800,6 +879,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             val localModelId = ruleEngine.getSelectedLocalModel()
             val phiService = PhiLocalService.getInstance(applicationContext)
 
+            dbg("14a local model=$localModelId available=${phiService.isModelAvailable(localModelId)}")
             if (!phiService.isModelAvailable(localModelId)) {
                 val errMsg = "Cloud AI ($modelType) failed: ${cloudError ?: "error"}. Local model '$localModelId' is not downloaded."
                 Log.e(TAG, errMsg)
@@ -819,6 +899,7 @@ class AppNotificationListenerService : NotificationListenerService() {
                 shouldContinue = { analysisAttempts.isActive(attemptId) },
                 remainingBudgetMs = { analysisAttempts.remaining(attemptId) },
             ) { localReply, localUsage ->
+                dbg("14b local result len=${localReply?.length ?: -1} err=${localUsage?.error?.take(80)} active=${analysisAttempts.isActive(attemptId)}")
                 if (!analysisAttempts.isActive(attemptId)) return@getAiReplyBatch
                 if (!localReply.isNullOrBlank()) {
                     Log.i(TAG, "Local model fallback succeeded for $sender! Generated reply: '$localReply'")
@@ -834,6 +915,7 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
 
         val cloudCallbackAdapter: (String?, PhiLocalService.AiUsage?) -> Unit = cloudCallback@{ aiReply, usage ->
+            dbg("12 cloud result len=${aiReply?.length ?: -1} err=${usage?.error?.take(90)} limit=${usage?.isLimitReached} active=${analysisAttempts.isActive(attemptId)}")
             if (!analysisAttempts.isActive(attemptId)) return@cloudCallback
             val tokensUsed = usage?.tokensUsed ?: 0
             val error = usage?.error
@@ -870,6 +952,7 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
 
         val localCallbackAdapter: (String?, PhiLocalService.AiUsage?) -> Unit = localCallback@{ aiReply, usage ->
+            dbg("12L local result len=${aiReply?.length ?: -1} err=${usage?.error?.take(90)} active=${analysisAttempts.isActive(attemptId)}")
             if (!analysisAttempts.isActive(attemptId)) return@localCallback
             val tokensUsed = usage?.tokensUsed ?: 0
             val error = usage?.error
@@ -894,6 +977,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             }
         }
 
+        dbg("11 calling AI model=$modelType limitReached=${modelType != "phi_local" && ruleEngine.isAiLimitReached(modelType)}")
         if (modelType != "phi_local" && ruleEngine.isAiLimitReached(modelType)) {
             Log.w(TAG, "Daily limit reached for $modelType. Falling back to local model immediately.")
             tryLocalFallback("Daily limit reached for $modelType")
@@ -909,6 +993,7 @@ class AppNotificationListenerService : NotificationListenerService() {
                     tryLocalFallback("Groq API key is missing")
                 } else {
                     val model = ruleEngine.getGroqModel()
+                    dbg("11g Groq request start model=$model keyLen=${apiKey.length}")
                     CloudAiService.getInstance(applicationContext).generateReply(
                         engineType = "groq_api",
                         apiKey = apiKey,
@@ -975,6 +1060,7 @@ class AppNotificationListenerService : NotificationListenerService() {
             }
         }
         } catch (e: Throwable) {
+            dbg("11x AI call threw ${e.javaClass.simpleName}: ${e.message?.take(90)}")
             notifyReplyError("Reply pipeline error: ${e.message ?: e.javaClass.simpleName}")
             failAnalysis(attemptId)
         }
@@ -1147,6 +1233,7 @@ class AppNotificationListenerService : NotificationListenerService() {
     private fun cancelUnsafeConversation(target: DirectChatGate.Target) {
         val conversation = AnalysisAttempts.conversationKey(target.packageName, target.shortcut,
             target.tag, target.id, target.key)
+        dbg("cancelUnsafeConversation conv=${dh(conversation)} key=${dh(target.key)}")
         messageBatcher.cancelConversation(conversation)
         analysisAttempts.snapshot().filter { it.conversation == conversation && it.state == "analysing" }
             .forEach { attempt ->
@@ -1167,6 +1254,25 @@ class AppNotificationListenerService : NotificationListenerService() {
             getSystemService(NotificationManager::class.java).cancel(CONFIRM_NOTIFICATION_ID_BASE + id.hashCode())
         }
         publishAnalysis()
+    }
+
+    /** DEBUG: explains why confirmedDirectTarget() returned null. */
+    private fun whyNotConfirmed(key: String, pkg: String?, shortcut: String?, tag: String?, id: Int?): String {
+        return try {
+            val origin = directChatGate.original(key) ?: return "key not admitted by chat gate"
+            if (pkg != null && origin.packageName != pkg) return "package differs"
+            if (shortcut != null && origin.shortcut != shortcut) return "shortcut differs"
+            if (tag != null && origin.tag != tag) return "tag differs"
+            if (id != null && origin.id != id) return "id differs"
+            val active = activeNotifications ?: return "activeNotifications=null"
+            val sameIdentity = active.filter { origin.sameConversation(chatTarget(it)) }
+            if (sameIdentity.isEmpty()) return "notification no longer showing (active=${active.size})"
+            val kinds = sameIdentity.map { classifyChat(it.notification, it.packageName) }
+            if (kinds.any { it != ChatTypePolicy.Kind.DIRECT }) return "a same-chat notification is not DIRECT: $kinds"
+            val withReply = sameIdentity.count { hasReplyAction(it) }
+            val permitted = sameIdentity.count { directChatGate.permits(key, chatTarget(it), classifyChat(it.notification, it.packageName)) }
+            "same=${sameIdentity.size} permitted=$permitted withReply=$withReply"
+        } catch (t: Throwable) { "check threw ${t.javaClass.simpleName}" }
     }
 
     private fun confirmedDirectTarget(key: String, pkg: String?, shortcut: String?, tag: String?, id: Int?): StatusBarNotification? {
@@ -1191,6 +1297,7 @@ class AppNotificationListenerService : NotificationListenerService() {
 
     private fun notifyReplyError(reason: String) {
         Log.e(TAG, "Reply pipeline error: $reason")
+        dbg("error: ${reason.take(120)}")
         if (methodChannel == null) recordPipelineEvent(reason)
         mainHandler.post {
             methodChannel?.invokeMethod("onReplyFailed", reason)
@@ -1221,6 +1328,7 @@ class AppNotificationListenerService : NotificationListenerService() {
     }
 
     private fun notifyUnsafeChatSkipped() {
+        dbg("unsafe-chat skip")
         mainHandler.post {
             methodChannel?.invokeMethod("onReplyFailed", "Skipped: one-to-one chat and original conversation could not be confirmed")
         }

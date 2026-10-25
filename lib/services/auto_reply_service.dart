@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
@@ -86,7 +87,16 @@ class AutoReplyService {
   void initialize() {
     _notificationChannel.setMethodCallHandler(_handleMethodCall);
     _drainNativePipelineEvents();
+    // DEBUG build (1.1.9-debug1): pull the native step-by-step trace into the
+    // Logs tab every few seconds while the app is open, not only at app start.
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      _debugDrainTimer?.cancel();
+      _debugDrainTimer = Timer.periodic(
+          const Duration(seconds: 3), (_) => _drainNativePipelineEvents());
+    }
   }
+
+  Timer? _debugDrainTimer;
 
   /// Pull pipeline events recorded natively while the app was closed and turn
   /// them into Logs entries, so off-screen failures and skips stay visible.
