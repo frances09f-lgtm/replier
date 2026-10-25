@@ -4,6 +4,7 @@
 - AI replies no longer get stuck at "Got new message". WhatsApp's summary notification for the same chat was cancelling the queued reply; it is now ignored (shown in Logs as "Ignored WhatsApp summary notification").
 - Groq replies work again with gpt-oss models. The app sent a setting Groq rejects for them, so every reply silently fell back to the on-phone model.
 - No more doubled replies like "Ok, cool.Ok, cool." from the on-phone model.
+- On-phone model replies are no longer dropped when its output starts with a role header or marker, and a failed on-phone reply (or failed fallback) now always shows its reason in Logs.
 
 ### Dashboard
 - The Analysis card is smaller and stays the same height in every state. Several analyses at once show as "+N more".

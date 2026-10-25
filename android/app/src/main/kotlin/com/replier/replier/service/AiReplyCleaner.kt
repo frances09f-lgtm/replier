@@ -20,10 +20,19 @@ object AiReplyCleaner {
     // second, run-on generation (likely cause of the on-device "Ok, cool.Ok, cool.": a reply plus
     // its repeat joined once the token between them was deleted), so we cut there instead.
     private val TURN_END_TOKENS = listOf(
-        LLAMA_EOT, LLAMA_HDR_START, "<|im_end|>", "<|im_start|>", "<end_of_turn>", "<start_of_turn>",
-        "<eos>", "<|end|>", "<|return|>", "<|endoftext|>", "</s>"
+        LLAMA_EOT, LLAMA_HDR_START, "<|eom_id|>", "<|end_of_text|>", "<|im_end|>", "<|im_start|>",
+        "<end_of_turn>", "<start_of_turn>", "<eos>", "<|end|>", "<|return|>", "<|endoftext|>", "</s>"
+    )
+    private val SPECIAL_TOKENS = TURN_END_TOKENS + listOf(
+        LLAMA_BEGIN, LLAMA_HDR_END, "<|python_tag|>", "<bos>", "<s>"
     )
     private val LLAMA_HEADER_REGEX = Regex("""<\|start_header_id\|>[^<]{0,40}<\|end_header_id\|>""")
+
+    // Leftovers of a role header whose special tokens were decoded as empty text: a bare role
+    // word on its own line at the very start ("assistant\n\nHi"), or glued after a finished
+    // sentence where a second turn begins ("Ok, cool.assistant\n\nOk, cool.").
+    private val LEADING_ROLE_LINE_REGEX = Regex("""^\s*(?i:assistant|system|user)[ \t]*\n""")
+    private val RUN_ON_ROLE_REGEX = Regex("""(?<=[.!?…)\]])\s*(?i:assistant|user|system)[ \t]*\n""")
 
     private val THINK_BLOCK_REGEX = Regex("""(?is)<think\b[^>]*>.*?<\/think>""")
     private val THOUGHT_BLOCK_REGEX = Regex("""(?is)<thought\b[^>]*>.*?<\/thought>""")
@@ -68,9 +77,11 @@ object AiReplyCleaner {
         var text = rawText.trim()
         if (text.isBlank()) return ""
 
-        // 1. Cut at the end of the first turn, then strip remaining special tokens
-        text = truncateAtTurnEnd(text)
-        text = stripSpecialTokens(text)
+        // 1. Cut at the end of the first turn, then strip remaining special tokens.
+        // If that leaves nothing (e.g. the output began with an unexpected marker), fall back to
+        // the whole output with only the special tokens removed rather than dropping the reply.
+        val firstTurn = stripSpecialTokens(truncateAtTurnEnd(text))
+        text = if (firstTurn.isNotBlank()) firstTurn else stripSpecialTokens(text)
 
         // 2. Strip thinking / reasoning tags (closed and unclosed)
         text = stripThinkingTags(text)
@@ -116,7 +127,18 @@ object AiReplyCleaner {
      * follows real text.
      */
     fun truncateAtTurnEnd(input: String): String {
-        val text = LLAMA_HEADER_REGEX.replace(input, "\n")
+        var text = LLAMA_HEADER_REGEX.replace(input, "\n")
+        // Drop leading special tokens and a leading bare role line before looking for the cut.
+        var prev: String
+        do {
+            prev = text
+            text = text.trimStart()
+            for (token in SPECIAL_TOKENS) if (text.startsWith(token)) text = text.substring(token.length)
+            text = LEADING_ROLE_LINE_REGEX.replace(text, "")
+        } while (text != prev)
+        RUN_ON_ROLE_REGEX.find(text)?.let { m ->
+            if (m.range.first > 0) text = text.substring(0, m.range.first)
+        }
         var from = 0
         while (from < text.length) {
             var cut = -1
@@ -151,16 +173,9 @@ object AiReplyCleaner {
     }
 
     private fun stripSpecialTokens(input: String): String {
-        return input.replace(LLAMA_EOT, "")
-            .replace(LLAMA_HDR_START, "")
-            .replace(LLAMA_HDR_END, "")
-            .replace(LLAMA_BEGIN, "")
-            .replace("<|im_start|>", "")
-            .replace("<|im_end|>", "")
-            .replace("<end_of_turn>", "")
-            .replace("<bos>", "")
-            .replace("<eos>", "")
-            .trim()
+        var res = input
+        for (token in SPECIAL_TOKENS) res = res.replace(token, "")
+        return res.trim()
     }
 
     fun stripThinkingTags(input: String): String {

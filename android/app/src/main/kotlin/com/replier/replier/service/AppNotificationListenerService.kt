@@ -796,11 +796,13 @@ class AppNotificationListenerService : NotificationListenerService() {
             if (!analysisAttempts.isActive(attemptId)) return
             if (confirmedDirectTarget(batch.latestNotificationKey, batch.packageName,
                     batch.latestShortcutId, batch.latestTag, batch.latestId) == null) {
+                notifyReplyError("Reply skipped: conversation could not be confirmed as a one-to-one chat")
                 failAnalysis(attemptId)
                 return
             }
             if (!ruleEngine.isFallbackToLocalEnabled()) {
                 Log.w(TAG, "Local fallback is disabled in settings. Skipping reply for $sender")
+                notifyReplyError("AI reply failed ($modelType): ${cloudError ?: "error"}. On-phone fallback is off.")
                 failAnalysis(attemptId)
                 return
             }
@@ -813,6 +815,7 @@ class AppNotificationListenerService : NotificationListenerService() {
                 Log.e(TAG, errMsg)
                 ruleEngine.saveAiUsage(modelType, 0, 0, 0, 0, errMsg)
                 notifyAiUsage(0, 0, 0, 0, errMsg)
+                notifyReplyError(errMsg)
                 failAnalysis(attemptId)
                 return
             }
@@ -837,6 +840,7 @@ class AppNotificationListenerService : NotificationListenerService() {
                     Log.e(TAG, localErr)
                     ruleEngine.saveAiUsage("phi_local", 0, 0, 0, 0, localErr)
                     notifyAiUsage(0, 0, 0, 0, localErr)
+                    notifyReplyError("AI reply failed ($modelType): ${cloudError ?: "error"}. $localErr")
                 }
             }
         }

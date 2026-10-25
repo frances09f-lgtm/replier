@@ -102,4 +102,48 @@ class AiReplyCleanerTest {
         assertEquals("haha haha", AiReplyCleaner.clean("haha haha", senderName = "Tab", incomingMessage = "lol"))
         assertEquals("bye bye", AiReplyCleaner.clean("bye bye", senderName = "Tab", incomingMessage = "cya"))
     }
+
+    // Realistic raw outputs from the on-phone Llama 3.2 1B model (llama.cpp may or may not render
+    // special tokens as text). None of these may come back empty.
+
+    @Test
+    fun llama_leadingEotThenReply_keepsReply() {
+        val raw = "<|eot_id|>\n\nHaan, 5 min mein aata hoon.<|eot_id|>"
+        assertEquals("Haan, 5 min mein aata hoon.", AiReplyCleaner.clean(raw, senderName = "Maya", incomingMessage = "Kab aa rahe ho?"))
+    }
+
+    @Test
+    fun llama_beginAndHeaderPrefix_keepsReply() {
+        val raw = "<|begin_of_text|><|start_header_id|>assistant<|end_header_id|>\n\nSure, see you at 7!<|eot_id|>"
+        assertEquals("Sure, see you at 7!", AiReplyCleaner.clean(raw, senderName = "Maya", incomingMessage = "Dinner at 7?"))
+    }
+
+    @Test
+    fun llama_headerTokensDecodedEmpty_bareRoleLineIsDropped() {
+        val raw = "assistant\n\nOn my way!"
+        assertEquals("On my way!", AiReplyCleaner.clean(raw, senderName = "Maya", incomingMessage = "Where are you?"))
+    }
+
+    @Test
+    fun llama_runOnSecondTurnWithDecodedEmptyTokens_keepsFirstReply() {
+        val raw = "Ok, cool.assistant\n\nOk, cool. Anything else?"
+        assertEquals("Ok, cool.", AiReplyCleaner.clean(raw, senderName = "Maya", incomingMessage = "Done"))
+    }
+
+    @Test
+    fun llama_trailingSecondUserTurn_isCut() {
+        val raw = "Yes, I'll call you back.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nMaya: ok"
+        assertEquals("Yes, I'll call you back.", AiReplyCleaner.clean(raw, senderName = "Maya", incomingMessage = "Call me?"))
+    }
+
+    @Test
+    fun llama_eomAndEndOfTextTokens_areCut() {
+        assertEquals("Thanks!", AiReplyCleaner.clean("Thanks!<|eom_id|>Thanks!", senderName = "Maya", incomingMessage = "Here"))
+        assertEquals("Thanks!", AiReplyCleaner.clean("Thanks!<|end_of_text|>", senderName = "Maya", incomingMessage = "Here"))
+    }
+
+    @Test
+    fun plainReplyWithoutTokens_isUnchanged() {
+        assertEquals("Busy right now, will text later.", AiReplyCleaner.clean("Busy right now, will text later.", senderName = "Maya", incomingMessage = "Free?"))
+    }
 }

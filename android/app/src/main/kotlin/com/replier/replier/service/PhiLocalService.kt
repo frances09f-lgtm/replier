@@ -350,11 +350,11 @@ class PhiLocalService private constructor(private val context: Context) {
                             fireOnce(cleanReply, AiUsage(tokensUsed = prompt.length / 4 + cleanReply.length / 4))
                         } else {
                             Log.e(TAG, "Clean reply is blank after postProcess for $modelId")
-                            fireOnce(null, AiUsage(error = "Empty response after processing"))
+                            fireOnce(null, AiUsage(error = "Local model reply was empty after cleanup (raw ${reply.length} chars)"))
                         }
                     } else {
                         Log.e(TAG, "Raw reply is null or empty for $modelId")
-                        fireOnce(null, AiUsage(error = "Empty response"))
+                        fireOnce(null, AiUsage(error = "Local model returned no text"))
                     }
                 }
             } catch (e: Throwable) {
