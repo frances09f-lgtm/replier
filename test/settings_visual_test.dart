@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -8,10 +9,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:replier/core/hive_config.dart';
 import 'package:replier/repositories/settings_repository.dart';
 import 'package:replier/core/constants.dart';
-import 'package:replier/screens/settings_screen.dart';
+import 'package:replier/screens/orion_settings_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
   setUpAll(() async {
     final d = await Directory.systemTemp.createTemp('replier-v24-visual');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -47,7 +49,8 @@ void main() {
     });
   }
 
-  testWidgets('v24: info row gone, update button at bottom', (t) async {
+  testWidgets('Orion canvas keeps the current Settings controls accessible',
+      (t) async {
     t.view.physicalSize = const Size(390, 844);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
@@ -65,11 +68,19 @@ void main() {
                   ),
                   scaffoldBackgroundColor: const Color(0xFF0F172A),
                 ),
-                home: const SettingsScreen()))));
+                home: const OrionSettingsScreen()))));
     await t.pumpAndSettle();
     expect(t.takeException(), isNull);
+    expect(find.byType(OrionSettingsScreen), findsOneWidget);
+    expect(find.text('Notification Access'), findsOneWidget);
+    expect(find.text('WhatsApp'), findsOneWidget);
+    expect(find.text('Instagram'), findsOneWidget);
+    expect(find.text('Reply Delay Range'), findsOneWidget);
+    expect(find.text('Prevent Duplicate Replies'), findsOneWidget);
+    expect(find.text('Confirm Before Reply'), findsOneWidget);
+    expect(find.text('Enable Schedule'), findsOneWidget);
     expect(find.text('Notification replies only'), findsNothing);
-    await shoot(t, 'settings_top_v24');
+    await shoot(t, 'settings_top_orion');
 
     final list = t.state<ScrollableState>(find.byType(Scrollable).first);
     list.position.jumpTo(list.position.maxScrollExtent);
@@ -82,6 +93,6 @@ void main() {
       ),
       findsOneWidget,
     );
-    await shoot(t, 'settings_bottom_v24');
+    await shoot(t, 'settings_bottom_orion');
   });
 }

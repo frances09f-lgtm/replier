@@ -8,7 +8,7 @@ import 'rules_screen.dart';
 import 'chat_screen.dart';
 import 'logs_screen.dart';
 import 'notes_screen.dart';
-import 'settings_screen.dart';
+import 'orion_settings_screen.dart';
 
 /// App shell recreating the approved draft layout: pill header bar on top,
 /// five tabs, floating pill dock at the bottom.
@@ -46,7 +46,8 @@ class _MainShellState extends ConsumerState<MainShell> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => const SettingsScreen()),
+                    builder: (context) => const OrionSettingsScreen(),
+                  ),
                 );
               },
             ),
